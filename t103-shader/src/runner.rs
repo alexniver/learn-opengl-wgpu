@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use wgpu::{
     util::DeviceExt, Backends, BufferUsages, Color, ColorTargetState, ColorWrites,
     CommandEncoderDescriptor, Features, Instance, PrimitiveState, PrimitiveTopology,
@@ -69,18 +71,6 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
         source: wgpu::ShaderSource::Wgsl(shader.into()),
     });
 
-    let (vertices, indices) = Vertex::triangle();
-    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Vertex Buffer"),
-        contents: bytemuck::cast_slice(&vertices),
-        usage: BufferUsages::VERTEX,
-    });
-    let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Index Buffer"),
-        contents: bytemuck::cast_slice(&indices),
-        usage: BufferUsages::INDEX,
-    });
-
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
         bind_group_layouts: &[],
@@ -118,6 +108,8 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
         multiview: None,
     });
 
+    let start_time = Instant::now();
+
     event_loop.run(move |event, _, control_flow| match event {
         winit::event::Event::RedrawRequested(window_id) if window_id == window.id() => {
             let current_texture = surface
@@ -129,6 +121,23 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
                 label: Some("Encoder"),
+            });
+
+            let run_time = Instant::now().duration_since(start_time).as_secs_f32();
+
+            let (mut vertices, indices) = Vertex::triangle();
+            vertices[0].color[0] = run_time.sin().abs();
+            vertices[1].color[1] = run_time.sin().abs();
+            vertices[2].color[2] = run_time.sin().abs();
+            let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: BufferUsages::VERTEX,
+            });
+            let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(&indices),
+                usage: BufferUsages::INDEX,
             });
 
             {
