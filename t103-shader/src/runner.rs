@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use wgpu::{
-    util::DeviceExt, Backends, BufferUsages, Color, ColorTargetState, ColorWrites,
+    util::DeviceExt, Backends, BindGroupEntry, BufferUsages, Color, ColorTargetState, ColorWrites,
     CommandEncoderDescriptor, Features, Instance, PrimitiveState, PrimitiveTopology,
     RenderPassDescriptor, TextureUsages,
 };
@@ -11,7 +11,7 @@ use winit::{
     window::Window,
 };
 
-use crate::vertex::Vertex;
+use crate::{time_uniform::TimeUniform, vertex::Vertex};
 
 pub async fn run(event_loop: EventLoop<()>, window: Window) {
     let instance = Instance::new(wgpu::InstanceDescriptor {
@@ -67,9 +67,24 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
         source: wgpu::ShaderSource::Wgsl(shader.into()),
     });
 
+    let time_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
-        bind_group_layouts: &[],
+        bind_group_layouts: &[&time_bind_group_layout],
         push_constant_ranges: &[],
     });
 
@@ -119,12 +134,24 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
                 label: Some("Encoder"),
             });
 
-            let run_time = Instant::now().duration_since(start_time).as_secs_f32();
+            let total_time = Instant::now().duration_since(start_time).as_secs_f32();
 
-            let (mut vertices, indices) = Vertex::triangle();
-            vertices[0].color[0] = run_time.sin().abs();
-            vertices[1].color[1] = run_time.sin().abs();
-            vertices[2].color[2] = run_time.sin().abs();
+            let time_uniform = TimeUniform::new(total_time);
+            let time_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Time Buffer"),
+                contents: bytemuck::cast_slice(&[time_uniform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+            let time_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bind Group"),
+                layout: &time_bind_group_layout,
+                entries: &[BindGroupEntry {
+                    binding: 0,
+                    resource: time_buffer.as_entire_binding(),
+                }],
+            });
+
+            let (vertices, indices) = Vertex::triangle();
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Vertex Buffer"),
                 contents: bytemuck::cast_slice(&vertices),
@@ -158,6 +185,9 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
                 render_pass.set_pipeline(&render_pipeline);
                 render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                 render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+
+                render_pass.set_bind_group(0, &time_bind_group, &[]);
+
                 render_pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
             }
 
