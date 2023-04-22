@@ -1,15 +1,8 @@
-use std::fs;
+use t102_triangle::{runner::run};
 
-use t102_triangle::{runner::run, vertex::Vertex};
-use wgpu::{
-    util::DeviceExt, Backends, BufferUsages, Color, ColorTargetState, ColorWrites,
-    CommandEncoderDescriptor, Features, FragmentState, Instance, PrimitiveState, TextureUsages,
-    VertexState,
-};
 use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    event_loop::{EventLoop},
+    window::{WindowBuilder},
 };
 
 fn main() {
