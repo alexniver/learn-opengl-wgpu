@@ -4,7 +4,7 @@ use wgpu::{
     RenderPassDescriptor, TextureUsages,
 };
 use winit::{
-    event::{self, ElementState, Event, WindowEvent},
+    event::{self, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
@@ -25,12 +25,16 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
 
     let window_size = window.inner_size();
 
+    // let adapter = instance
+    //     .request_adapter(&wgpu::RequestAdapterOptionsBase {
+    //         power_preference: wgpu::PowerPreference::HighPerformance,
+    //         force_fallback_adapter: false,
+    //         compatible_surface: Some(&surface),
+    //     })
+    //     .await
+    //     .expect("request adapter error");
     let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptionsBase {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: Some(&surface),
-        })
+        .request_adapter(&wgpu::RequestAdapterOptionsBase::default())
         .await
         .expect("request adapter error");
 
@@ -39,7 +43,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
             &wgpu::DeviceDescriptor {
                 label: Some("Device"),
                 features: Features::empty(),
-                limits: todo!(),
+                limits: wgpu::Limits::default(),
             },
             None,
         )
@@ -151,6 +155,9 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
                 render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
                 render_pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
             }
+
+            queue.submit(std::iter::once(encoder.finish()));
+            current_texture.present();
         }
         winit::event::Event::WindowEvent { window_id, event } if window_id == window.id() => {
             match event {
@@ -159,20 +166,17 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
                     surface_config.height = new_size.height;
                     surface.configure(&device, &surface_config);
                 }
-                WindowEvent::KeyboardInput {
+                WindowEvent::CloseRequested
+                | WindowEvent::KeyboardInput {
                     input:
                         event::KeyboardInput {
-                            state,
-                            virtual_keycode,
+                            state: event::ElementState::Released,
+                            virtual_keycode: Some(event::VirtualKeyCode::Escape),
                             ..
                         },
                     ..
                 } => {
-                    if virtual_keycode == Some(event::VirtualKeyCode::Escape)
-                        && state == ElementState::Released
-                    {
-                        *control_flow = ControlFlow::Exit;
-                    }
+                    *control_flow = ControlFlow::Exit;
                 }
                 _ => {}
             }
