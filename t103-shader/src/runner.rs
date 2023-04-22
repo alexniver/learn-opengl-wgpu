@@ -27,16 +27,12 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
 
     let window_size = window.inner_size();
 
-    // let adapter = instance
-    //     .request_adapter(&wgpu::RequestAdapterOptionsBase {
-    //         power_preference: wgpu::PowerPreference::HighPerformance,
-    //         force_fallback_adapter: false,
-    //         compatible_surface: Some(&surface),
-    //     })
-    //     .await
-    //     .expect("request adapter error");
     let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptionsBase::default())
+        .request_adapter(&wgpu::RequestAdapterOptionsBase {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            force_fallback_adapter: false,
+            compatible_surface: Some(&surface),
+        })
         .await
         .expect("request adapter error");
 
