@@ -46,19 +46,19 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
         view_formats: vec![],
     };
 
-    let img_bytes = std::fs::read("assets/texture/wall.jpg").expect("read wall.jpg fail");
-    let img = image::load_from_memory(&img_bytes).expect("load image from memory fail");
+    let img_bytes1 = std::fs::read("assets/texture/dir.png").expect("read wall.jpg fail");
+    let img1 = image::load_from_memory(&img_bytes1).expect("load image from memory fail");
 
-    let img_dimension = img.dimensions();
-    let img_rgba = img.to_rgba8();
+    let img_dimension1 = img1.dimensions();
+    let img_rgba1 = img1.to_rgba8();
 
     let texture_size = wgpu::Extent3d {
-        width: img_dimension.0,
-        height: img_dimension.1,
+        width: img_dimension1.0,
+        height: img_dimension1.1,
         depth_or_array_layers: 1,
     };
 
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
+    let texture1 = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Texture"),
         size: texture_size,
         mip_level_count: 1,
@@ -70,23 +70,71 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
     });
     queue.write_texture(
         wgpu::ImageCopyTextureBase {
-            texture: &texture,
+            texture: &texture1,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
-        &img_rgba,
+        &img_rgba1,
         wgpu::ImageDataLayout {
             offset: 0,
-            bytes_per_row: Some(4 * img_dimension.0),
-            rows_per_image: Some(img_dimension.1),
+            bytes_per_row: Some(4 * img_dimension1.0),
+            rows_per_image: Some(img_dimension1.1),
         },
         texture_size,
     );
 
-    let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+    let texture_view1 = texture1.create_view(&wgpu::TextureViewDescriptor::default());
+    let texture_sampler1 = device.create_sampler(&wgpu::SamplerDescriptor {
         label: Some("Sampler"),
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        address_mode_w: wgpu::AddressMode::ClampToEdge,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::FilterMode::Nearest,
+        ..Default::default()
+    });
+
+    let img_bytes2 = std::fs::read("assets/texture/wall.jpg").expect("read image fail");
+    let img2 = image::load_from_memory(&img_bytes2).expect("load dir_en.png fail");
+    let img_rgba2 = img2.to_rgba8();
+
+    let img_dimensions2 = img2.dimensions();
+    let texture_size2 = wgpu::Extent3d {
+        width: img_dimensions2.0,
+        height: img_dimensions2.1,
+        depth_or_array_layers: 1,
+    };
+
+    let texture2 = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("Texture2"),
+        size: texture_size2,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    queue.write_texture(
+        wgpu::ImageCopyTextureBase {
+            texture: &texture2,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &img_rgba2,
+        wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * img_dimensions2.0),
+            rows_per_image: Some(img_dimensions2.1),
+        },
+        texture_size2,
+    );
+    let texture_view2 = texture2.create_view(&wgpu::TextureViewDescriptor::default());
+    let texture_sampler2 = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("Texture Sampler 2"),
         address_mode_u: wgpu::AddressMode::ClampToEdge,
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -119,17 +167,32 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
             ],
         });
 
-    let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+    let texture_bind_group1 = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("Texture Bind Group"),
         layout: &texture_bind_group_layout,
         entries: &[
             wgpu::BindGroupEntry {
                 binding: 0,
-                resource: wgpu::BindingResource::TextureView(&texture_view),
+                resource: wgpu::BindingResource::TextureView(&texture_view1),
             },
             wgpu::BindGroupEntry {
                 binding: 1,
-                resource: wgpu::BindingResource::Sampler(&texture_sampler),
+                resource: wgpu::BindingResource::Sampler(&texture_sampler1),
+            },
+        ],
+    });
+
+    let texture_bind_group2 = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("Texture Bind Group"),
+        layout: &texture_bind_group_layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&texture_view2),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&texture_sampler2),
             },
         ],
     });
@@ -143,7 +206,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
 
     let render_pipline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipline Layout"),
-        bind_group_layouts: &[&texture_bind_group_layout],
+        bind_group_layouts: &[&texture_bind_group_layout, &texture_bind_group_layout],
         push_constant_ranges: &[],
     });
 
@@ -226,7 +289,8 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
                 render_pass.set_pipeline(&render_pipline);
                 render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                 render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                render_pass.set_bind_group(0, &texture_bind_group, &[]);
+                render_pass.set_bind_group(0, &texture_bind_group1, &[]);
+                render_pass.set_bind_group(1, &texture_bind_group2, &[]);
                 render_pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
             }
 

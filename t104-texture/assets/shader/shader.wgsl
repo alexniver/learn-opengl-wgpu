@@ -17,11 +17,19 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 }
 
 @group(0)@binding(0)
-var texture_diffuse: texture_2d<f32>;
+var texture_diffuse1: texture_2d<f32>;
 @group(0)@binding(1)
-var sampler_diffuse: sampler;
+var sampler_diffuse1: sampler;
+
+@group(1)@binding(0)
+var texture_diffuse2: texture_2d<f32>;
+@group(1)@binding(1)
+var sampler_diffuse2: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(texture_diffuse, sampler_diffuse, in.tex_coord);
+    let v1 = textureSample(texture_diffuse1, sampler_diffuse1, in.tex_coord);
+    let v2 = textureSample(texture_diffuse2, sampler_diffuse2, in.tex_coord);
+    return mix(v1, v2, 0.5);
+    //return textureSample(texture_diffuse2, sampler_diffuse2, in.tex_coord);
 }
