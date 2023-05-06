@@ -9,16 +9,19 @@ struct VertexOutput {
 };
 
 @vertex
-fn vs_main(in: VertexInput) -> VertexInput {
+fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_pos = in.pos;
+    out.clip_pos = vec4<f32>(in.pos, 1.0);
     out.tex_coord = in.tex_coord;
     return out;
 }
 
-
+@group(0)@binding(0)
+var texture_diffuse: texture_2d<f32>;
+@group(0)@binding(1)
+var sampler_diffuse: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return in.color;
+    return textureSample(texture_diffuse, sampler_diffuse, in.tex_coord);
 }
