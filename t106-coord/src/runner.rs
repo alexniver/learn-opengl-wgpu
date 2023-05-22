@@ -206,7 +206,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) {
     });
 
     let mut transform_arr = vec![];
-    let axis = Vec3::new(1.0, 0.3, 0.5);
+    let axis = Vec3::new(1.0, 0.3, 0.5).normalize();
     transform_arr.push(Transform::new(
         Vec3::new(0.0, 0.0, 0.0),
         Quat::from_axis_angle(axis, (20.0 * 0.0_f32).to_radians()),
