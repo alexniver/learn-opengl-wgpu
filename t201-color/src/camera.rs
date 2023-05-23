@@ -83,6 +83,13 @@ impl Camera {
         if input.is_pressed(VirtualKeyCode::D) {
             self.move_right(delta_time);
         }
+
+        if input.is_pressed(VirtualKeyCode::Space) {
+            self.move_up(delta_time);
+        }
+        if input.is_pressed(VirtualKeyCode::LShift) {
+            self.move_down(delta_time);
+        }
     }
 
     pub fn move_left(&mut self, delta_time: f32) {
@@ -101,6 +108,14 @@ impl Camera {
 
     pub fn move_back(&mut self, delta_time: f32) {
         self.pos -= self.front * self.speed * delta_time;
+    }
+
+    pub fn move_up(&mut self, delta_time: f32) {
+        self.pos += Vec3::Y * self.speed * delta_time;
+    }
+
+    pub fn move_down(&mut self, delta_time: f32) {
+        self.pos += Vec3::NEG_Y * self.speed * delta_time;
     }
 
     pub fn update_size(&mut self, width: f32, height: f32) {
