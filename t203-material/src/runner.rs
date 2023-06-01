@@ -286,7 +286,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
     });
 
     let light_pos = [1.2, 1.0, 2.0];
-    let light = Light::new(
+    let mut light = Light::new(
         light_pos,
         [1.0, 1.0, 1.0],
         [0.2, 0.2, 0.2],
@@ -364,6 +364,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
         usage: wgpu::BufferUsages::VERTEX,
     });
 
+    let start_time = Instant::now();
     let mut last_time = Instant::now();
     let mut delta_time = 0.0;
 
@@ -371,6 +372,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
 
     event_loop.run(move |event, _, control_flow| match event {
         winit::event::Event::RedrawRequested(window_id) if window_id == window.id() => {
+            let total_time = (Instant::now() - start_time).as_secs_f32();
             delta_time = (Instant::now() - last_time).as_secs_f32();
             last_time = Instant::now();
 
@@ -402,6 +404,14 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
                 0,
                 bytemuck::cast_slice(&camera.pos.to_array()),
             );
+
+            let new_color = [
+                (total_time * 2.0).sin(),
+                (total_time * 0.7).sin(),
+                (total_time * 1.3).sin(),
+            ];
+            light.change_color(new_color);
+            queue.write_buffer(&light_buffer, 0, bytemuck::bytes_of(&light));
 
             {
                 let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

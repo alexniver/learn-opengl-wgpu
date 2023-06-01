@@ -42,4 +42,8 @@ impl Light {
             _padding4: 0,
         }
     }
+
+    pub fn change_color(&mut self, color: [f32; 3]) {
+        self.color = color;
+    }
 }
