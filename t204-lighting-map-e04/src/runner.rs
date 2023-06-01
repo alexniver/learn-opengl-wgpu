@@ -161,6 +161,16 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -169,7 +179,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 4,
+                    binding: 5,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
@@ -364,15 +374,14 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
 
     let texture_sampler = gen_texture_sampler(&device);
     let texture_diffuse_view = gen_texture_view("assets/texture/container2.png", &device, &queue)?;
-    let texture_specular_view = gen_texture_view(
-        "assets/texture/lighting_maps_specular_color.png",
-        &device,
-        &queue,
-    )?;
+    let texture_specular_view =
+        gen_texture_view("assets/texture/container2_specular.png", &device, &queue)?;
+    let texture_emission_view = gen_texture_view("assets/texture/matrix.jpg", &device, &queue)?;
     let material = Material::new(
         texture_sampler,
         texture_diffuse_view,
         texture_specular_view,
+        texture_emission_view,
         32.0,
     );
     let color_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -403,10 +412,14 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
             },
             wgpu::BindGroupEntry {
                 binding: 3,
-                resource: wgpu::BindingResource::Buffer(color_buffer.as_entire_buffer_binding()),
+                resource: wgpu::BindingResource::TextureView(&material.emission),
             },
             wgpu::BindGroupEntry {
                 binding: 4,
+                resource: wgpu::BindingResource::Buffer(color_buffer.as_entire_buffer_binding()),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
                 resource: wgpu::BindingResource::Buffer(
                     shininess_buffer.as_entire_buffer_binding(),
                 ),
