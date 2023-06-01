@@ -289,8 +289,8 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
     let mut light = Light::new(
         light_pos,
         [1.0, 1.0, 1.0],
-        [0.2, 0.2, 0.2],
-        [0.5, 0.5, 0.5],
+        [1.0, 1.0, 1.0],
+        [1.0, 1.0, 1.0],
         [1.0, 1.0, 1.0],
     );
 
