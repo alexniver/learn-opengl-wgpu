@@ -1,5 +1,7 @@
 use glam::{Mat4, Quat, Vec3};
 
+const MAT4_NUM = 2;
+
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,
