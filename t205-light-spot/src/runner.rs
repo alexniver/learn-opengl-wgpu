@@ -276,6 +276,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
         [0.5, 0.5, 0.5],
         [1.0, 1.0, 1.0],
         12.5_f32.to_radians().cos(),
+        17.5_f32.to_radians().cos(),
     );
 
     let light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

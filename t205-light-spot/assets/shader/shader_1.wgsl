@@ -28,8 +28,9 @@ struct Light {
     color: vec3<f32>,
     ambient: vec3<f32>,
     diffuse: vec3<f32>,
+    in_cutoff: f32,
     specular: vec3<f32>,
-    cutoff: f32,
+    out_cutoff: f32,
 }
 
 @group(0)@binding(0)
@@ -72,23 +73,26 @@ var<uniform> shininess: f32;
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let light_dir = normalize(light.pos - in.frag_pos);
-    let theta = dot(light_dir, normalize(-light.front));
     let tex_diffuse = textureSample(texture_diffuse, texture_sampler, in.tex_coord).rgb;
     let tex_specular = textureSample(texture_specular, texture_sampler, in.tex_coord).rgb;
 
-    if theta > light.cutoff {
-        let ambient = light.ambient * tex_diffuse;
+    let theta = dot(light_dir, normalize(-light.front));
+    let epsilon = light.in_cutoff - light.out_cutoff;
+    let intensity = clamp((theta - light.out_cutoff) / epsilon, 0.0, 1.0);
 
-        let normal = normalize(in.normal);
-        let diff = max(dot(normal, light_dir), 0.0);
-        let diffuse = light.diffuse * (diff * tex_diffuse);
+    let ambient = light.ambient * tex_diffuse;
 
-        let view_dir = normalize(camera_pos - in.frag_pos);
-        let reflect_dir = reflect(-light_dir, normal);
-        let spec = pow(max(dot(view_dir, reflect_dir), 0.0), shininess);
-        let specular = light.specular * (spec * tex_specular);
-        return vec4<f32>(ambient + diffuse + specular, 1.0);
-    } else {
-        return vec4<f32>((light.ambient * tex_diffuse), 1.0);
-    }
+    let normal = normalize(in.normal);
+    let diff = max(dot(normal, light_dir), 0.0);
+    var diffuse = light.diffuse * (diff * tex_diffuse);
+
+    let view_dir = normalize(camera_pos - in.frag_pos);
+    let reflect_dir = reflect(-light_dir, normal);
+    let spec = pow(max(dot(view_dir, reflect_dir), 0.0), shininess);
+    var specular = light.specular * (spec * tex_specular);
+
+    diffuse *= intensity;
+    specular *= intensity;
+
+    return vec4<f32>(ambient + diffuse + specular, 1.0);
 }

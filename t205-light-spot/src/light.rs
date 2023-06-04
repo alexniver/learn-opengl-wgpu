@@ -17,11 +17,10 @@ pub struct Light {
     _padding3: u32,
 
     pub diffuse: [f32; 3],
-    // 16 bytes padding
-    _padding4: u32,
+    pub in_cutoff: f32,
 
     pub specular: [f32; 3],
-    pub cutoff: f32,
+    pub out_cutoff: f32,
 }
 
 impl Light {
@@ -32,7 +31,8 @@ impl Light {
         ambient: [f32; 3],
         diffuse: [f32; 3],
         specular: [f32; 3],
-        cutoff: f32,
+        in_cutoff: f32,
+        out_cutoff: f32,
     ) -> Self {
         Self {
             pos,
@@ -44,9 +44,9 @@ impl Light {
             ambient,
             _padding3: 0,
             diffuse,
-            _padding4: 0,
+            in_cutoff,
             specular,
-            cutoff,
+            out_cutoff,
         }
     }
 
