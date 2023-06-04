@@ -16,6 +16,10 @@ struct Transform {
     @location(6) t1: vec4<f32>,
     @location(7) t2: vec4<f32>,
     @location(8) t3: vec4<f32>,
+    @location(9) t4: vec4<f32>,
+    @location(10) t5: vec4<f32>,
+    @location(11) t6: vec4<f32>,
+    @location(12) t7: vec4<f32>,
 }
 
 struct Light {
@@ -35,11 +39,12 @@ var<uniform> proj: mat4x4<f32>;
 @vertex
 fn vs_main(in: VertexIn, transform: Transform) -> VertexOut {
     let model = mat4x4<f32>(transform.t0, transform.t1, transform.t2, transform.t3);
+    let it_model = mat3x3<f32>(transform.t4.xyz, transform.t5.xyz, transform.t6.xyz); // transpose(inverse(model))
 
     var out: VertexOut;
     out.clip_pos = proj * view * model * vec4<f32>(in.pos, 1.0);
     out.frag_pos = (model * vec4<f32>(in.pos, 1.0)).xyz;
-    out.normal = in.normal;
+    out.normal = it_model * in.normal;
     out.tex_coord = in.tex_coord;
 
     return out;
