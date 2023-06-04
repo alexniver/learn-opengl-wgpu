@@ -12,7 +12,7 @@ use crate::{
     light::Light,
     material::Material,
     texture::{self, gen_texture_depth, gen_texture_sampler, gen_texture_view},
-    transform::Transform,
+    transform::{Transform, TransformRaw},
     vertex::Vertex,
 };
 
@@ -206,7 +206,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
             entry_point: "vs_main",
             buffers: &[
                 Vertex::vertex_buffer_layout(),
-                Transform::vertex_buffer_layout(),
+                TransformRaw::vertex_buffer_layout(),
             ],
         },
         primitive: wgpu::PrimitiveState {
@@ -250,7 +250,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
             entry_point: "vs_main",
             buffers: &[
                 Vertex::vertex_buffer_layout(),
-                Transform::vertex_buffer_layout(),
+                TransformRaw::vertex_buffer_layout(),
             ],
         },
         primitive: wgpu::PrimitiveState {
@@ -324,7 +324,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
     });
 
     let light_pos = [1.2, 1.0, 2.0];
-    let mut light = Light::new(
+    let light = Light::new(
         light_pos,
         [1.0, 1.0, 1.0],
         [0.2, 0.2, 0.2],
@@ -415,10 +415,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
     });
 
     let transform_arr = transforms();
-    let transform_mat_arr = transform_arr
-        .iter()
-        .map(|t| t.to_mat4().to_cols_array_2d())
-        .collect::<Vec<_>>();
+    let transform_mat_arr = transform_arr.iter().map(|t| t.to_raw()).collect::<Vec<_>>();
 
     let transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Transform Buffer"),
@@ -429,7 +426,7 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
     let light_transform = Transform::new(light_pos.into(), Quat::IDENTITY, Vec3::splat(0.2));
     let light_transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Light Transform Buffer"),
-        contents: bytemuck::cast_slice(&light_transform.to_mat4().to_cols_array_2d()),
+        contents: bytemuck::cast_slice(&[light_transform.to_raw()]),
         usage: wgpu::BufferUsages::VERTEX,
     });
 
