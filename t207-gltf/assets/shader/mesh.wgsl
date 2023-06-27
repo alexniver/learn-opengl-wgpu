@@ -27,7 +27,7 @@ struct LightDirection {
     color: vec4<f32>,
     ambient: vec3<f32>,
     diffuse: vec3<f32>,
-    specular: vec3<f32>,
+    metallic: vec3<f32>,
 }
 
 struct LightDirectionArray {
@@ -41,7 +41,7 @@ struct LightPoint {
     constant: f32,
     diffuse: vec3<f32>,
     linear: f32,
-    specular: vec3<f32>,
+    metallic: vec3<f32>,
     quadratic: f32,
 }
 
@@ -56,7 +56,7 @@ struct LightSpot {
     ambient: vec3<f32>,
     diffuse: vec3<f32>,
     in_cutoff: f32,
-    specular: vec3<f32>,
+    metallic: vec3<f32>,
     out_cutoff: f32,
 }
 
@@ -100,10 +100,8 @@ var texture_sampler: sampler;
 @group(2)@binding(1)
 var texture_diffuse: texture_2d<f32>;
 @group(2)@binding(2)
-var texture_specular: texture_2d<f32>;
-@group(2)@binding(3)
 var<uniform> color: vec3<f32>;
-@group(2)@binding(4)
+@group(2)@binding(3)
 var<uniform> shininess: f32;
 
 @fragment
@@ -113,23 +111,22 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let view_dir = normalize(camera_pos - in.frag_pos);
 
     let tex_diffuse = textureSample(texture_diffuse, texture_sampler, in.tex_coord).rgb;
-    let tex_specular = textureSample(texture_specular, texture_sampler, in.tex_coord).rgb;
 
     for (var i: u32 = 0u; i < arrayLength(&light_direction_arr.arr); i = i + 1u) {
-        l += do_light_direction(light_direction_arr.arr[i], normal, view_dir, tex_diffuse, tex_specular);
+        l += do_light_direction(light_direction_arr.arr[i], normal, view_dir, tex_diffuse);
     }
 
     for (var i: u32 = 0u; i < arrayLength(&light_point_arr.arr); i = i + 1u) {
-        l += do_light_point(light_point_arr.arr[i], normal, view_dir, tex_diffuse, tex_specular, in.frag_pos);
+        l += do_light_point(light_point_arr.arr[i], normal, view_dir, tex_diffuse, in.frag_pos);
     }
 
     for (var i: u32 = 0u; i < arrayLength(&light_spot_arr.arr); i = i + 1u) {
-        l += do_light_spot(light_spot_arr.arr[i], normal, tex_diffuse, tex_specular, in.frag_pos);
+        l += do_light_spot(light_spot_arr.arr[i], normal, tex_diffuse, in.frag_pos);
     }
     return vec4<f32>(l, 1.0);
 }
 
-fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>, tex_specular: vec3<f32>) -> vec3<f32> {
+fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>) -> vec3<f32> {
     if light_direction.color.a == 0.0 {
         return vec3<f32>(0.0, 0.0, 0.0);
     }
@@ -144,12 +141,11 @@ fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_d
 
     let reflect_dir = reflect(-light_dir, normal);
     let spec = pow(max(dot(view_dir, reflect_dir), 0.0), shininess);
-    let specular = light_color * light_direction.specular * (spec * tex_specular);
 
-    return ambient + diffuse + specular;
+    return ambient + diffuse;
 }
 
-fn do_light_point(light_point: LightPoint, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>, tex_specular: vec3<f32>, frag_pos: vec3<f32>) -> vec3<f32> {
+fn do_light_point(light_point: LightPoint, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>, frag_pos: vec3<f32>) -> vec3<f32> {
     if light_point.color.a == 0.0 {
         return vec3<f32>(0.0, 0.0, 0.0);
     }
@@ -165,20 +161,17 @@ fn do_light_point(light_point: LightPoint, normal: vec3<f32>, view_dir: vec3<f32
     let view_dir = normalize(camera_pos - frag_pos);
     let reflect_dir = reflect(-light_dir, normal);
     let spec = pow(max(dot(view_dir, reflect_dir), 0.0), shininess);
-    var specular = light_color * light_point.specular * (spec * tex_specular);
 
     let len = length(light_point.pos - frag_pos);
     let attenuation = 1.0 / (light_point.constant + light_point.linear * len + light_point.quadratic * (len * len));
 
     ambient *= attenuation;
     diffuse *= attenuation;
-    specular *= attenuation;
 
-
-    return ambient + diffuse + specular;
+    return ambient + diffuse;
 }
 
-fn do_light_spot(light_spot: LightSpot, normal: vec3<f32>, tex_diffuse: vec3<f32>, tex_specular: vec3<f32>, frag_pos: vec3<f32>) -> vec3<f32> {
+fn do_light_spot(light_spot: LightSpot, normal: vec3<f32>, tex_diffuse: vec3<f32>, frag_pos: vec3<f32>) -> vec3<f32> {
     if light_spot.color.a == 0.0 {
         return vec3<f32>(0.0, 0.0, 0.0);
     }
@@ -198,10 +191,8 @@ fn do_light_spot(light_spot: LightSpot, normal: vec3<f32>, tex_diffuse: vec3<f32
     let view_dir = normalize(camera_pos - frag_pos);
     let reflect_dir = reflect(-light_dir, normal);
     let spec = pow(max(dot(view_dir, reflect_dir), 0.0), shininess);
-    var specular = light_color * light_spot.specular * (spec * tex_specular);
 
     diffuse *= intensity;
-    specular *= intensity;
 
-    return ambient + diffuse + specular;
+    return ambient + diffuse;
 }

@@ -15,11 +15,10 @@ pub fn gen_texture_sampler(device: &wgpu::Device) -> wgpu::Sampler {
 }
 
 pub fn gen_texture_view(
-    img_path: &str,
+    img_bytes: Vec<u8>,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 ) -> Result<wgpu::TextureView> {
-    let img_bytes = std::fs::read(img_path)?;
     let img = image::load_from_memory(&img_bytes)?;
     let img_rgba = img.to_rgba8();
     let img_dim = img.dimensions();

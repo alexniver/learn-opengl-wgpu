@@ -16,3 +16,4 @@ bytemuck = {version = "1.13", features = ["derive"]}
 anyhow = "1.0"
 wgpu = "0.16"
 gltf = "1.2.0"
+base64 = "0.21"

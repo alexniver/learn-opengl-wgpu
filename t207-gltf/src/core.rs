@@ -1,9 +1,9 @@
 use std::time::Instant;
 
 use wgpu::{
-    util::DeviceExt, Adapter, Backends, BindGroup, Buffer, Device, DeviceDescriptor, Features,
-    IndexFormat, Instance, PresentMode, Queue, RenderPipeline, Surface, SurfaceConfiguration,
-    TextureUsages, TextureView,
+    util::DeviceExt, Adapter, Backends, BindGroup, BindGroupLayout, Buffer, Device,
+    DeviceDescriptor, Features, IndexFormat, Instance, PresentMode, Queue, RenderPipeline, Surface,
+    SurfaceConfiguration, TextureUsages, TextureView,
 };
 use winit::{dpi::PhysicalPosition, event_loop::EventLoop, window::Window};
 
@@ -14,9 +14,9 @@ use crate::{
     light_point::LightPoint,
     light_spot::LightSpot,
     material::Material,
-    model::{DrawMethod, Model},
+    model::DrawMethod,
     model_light::ModelLight,
-    texture::{self, gen_texture_depth, gen_texture_sampler, gen_texture_view},
+    texture::{self, gen_texture_depth},
     transform::TransformRawIT,
     vertex::Vertex,
 };
@@ -38,7 +38,9 @@ pub struct Core {
 
     pub camera_bind_group: BindGroup,
     pub light_arr_bind_group: BindGroup,
-    pub material_bind_group: BindGroup,
+
+    pub material_bind_group_layout: BindGroupLayout,
+    pub material_arr: Vec<Material>,
 
     pub light_direction_arr: Vec<LightDirection>,
     pub light_point_arr: Vec<LightPoint>,
@@ -52,7 +54,6 @@ pub struct Core {
     pub light_point_buffer: Buffer,
     pub light_spot_buffer: Buffer,
 
-    pub model_arr: Vec<Model>,
     pub model_light_arr: Vec<ModelLight>,
 
     pub start_time: Instant,
@@ -212,16 +213,6 @@ impl Core {
                     wgpu::BindGroupLayoutEntry {
                         binding: 2,
                         visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
@@ -230,7 +221,7 @@ impl Core {
                         count: None,
                     },
                     wgpu::BindGroupLayoutEntry {
-                        binding: 4,
+                        binding: 3,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
@@ -462,58 +453,6 @@ impl Core {
             ],
         });
 
-        let texture_sampler = gen_texture_sampler(&device);
-        let texture_diffuse_view =
-            gen_texture_view("assets/texture/container2.png", &device, &queue).unwrap();
-        let texture_specular_view =
-            gen_texture_view("assets/texture/container2_specular.png", &device, &queue).unwrap();
-        let material = Material::new(
-            texture_sampler,
-            texture_diffuse_view,
-            texture_specular_view,
-            32.0,
-        );
-        let color_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Color Buffer"),
-            contents: bytemuck::cast_slice(&[1.0, 0.5, 0.31]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let shininess_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Material Buffer"),
-            contents: bytemuck::bytes_of(&material.shininess),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let material_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Material Bind Group"),
-            layout: &material_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Sampler(&material.sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&material.diffuse),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::TextureView(&material.specular),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(
-                        color_buffer.as_entire_buffer_binding(),
-                    ),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(
-                        shininess_buffer.as_entire_buffer_binding(),
-                    ),
-                },
-            ],
-        });
-
         let texture_depth = gen_texture_depth(&device, &surface_config);
         let input = Input::new();
 
@@ -533,9 +472,9 @@ impl Core {
 
             camera_bind_group,
             light_arr_bind_group,
-            material_bind_group,
+            material_bind_group_layout,
+            material_arr: vec![],
 
-            model_arr: vec![],
             model_light_arr: vec![],
 
             light_direction_arr,
@@ -608,19 +547,23 @@ impl Core {
             render_pass.set_pipeline(&self.render_pipline_mesh);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_bind_group(1, &self.light_arr_bind_group, &[]);
-            render_pass.set_bind_group(2, &self.material_bind_group, &[]);
 
-            // render model
-            for model in &self.model_arr {
-                if model.draw_method == DrawMethod::Vertex {
-                    render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
-                    render_pass.set_vertex_buffer(1, model.transform_buffer.slice(..));
-                    render_pass.draw(0..model.vertices_len, 0..model.instance_num);
-                } else {
-                    render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
-                    render_pass.set_vertex_buffer(1, model.transform_buffer.slice(..));
-                    render_pass.set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
-                    render_pass.draw_indexed(0..model.indices_len, 0, 0..model.instance_num);
+            for material in &self.material_arr {
+                render_pass.set_bind_group(2, &material.bind_group, &[]);
+
+                // render model
+                for model in &material.model_arr {
+                    if model.draw_method == DrawMethod::Vertex {
+                        render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
+                        render_pass.set_vertex_buffer(1, model.transform_buffer.slice(..));
+                        render_pass.draw(0..model.vertices_len, 0..model.instance_num);
+                    } else {
+                        render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
+                        render_pass.set_vertex_buffer(1, model.transform_buffer.slice(..));
+                        render_pass
+                            .set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
+                        render_pass.draw_indexed(0..model.indices_len, 0, 0..model.instance_num);
+                    }
                 }
             }
 
@@ -678,14 +621,6 @@ impl Core {
             0,
             bytemuck::cast_slice(&self.light_spot_arr),
         );
-    }
-
-    pub fn add_model(&mut self, model: Model) {
-        self.model_arr.push(model);
-    }
-
-    pub fn add_model_arr(&mut self, model_arr: &mut Vec<Model>) {
-        self.model_arr.append(model_arr);
     }
 
     pub fn add_model_light(&mut self, model_light: ModelLight) {
