@@ -62,9 +62,8 @@ pub fn load_gltf_model(core: &mut Core) {
                         .unwrap();
             }
             gltf::image::Source::Uri { uri, .. } => {
-                println!("uri: {:?}", base_path.join(uri.replace("%20", " ")));
                 texture_view = gen_texture_view(
-                    std::fs::read(base_path.join(uri.replace("%20", " "))).unwrap(),
+                    std::fs::read(base_path.join(url_escape::decode(uri).to_string())).unwrap(),
                     &core.device,
                     &core.queue,
                 )
