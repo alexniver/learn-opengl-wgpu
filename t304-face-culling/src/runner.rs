@@ -17,10 +17,10 @@ pub fn run() {
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     pollster::block_on(async {
         let mut core = Core::new(window).await;
-        // load_box_model(&mut core);
+        load_box_model(&mut core);
         // load_rect_model(&mut core);
         // load_triangle_model(&mut core);
-        load_gltf_model(&mut core);
+        // load_gltf_model(&mut core);
 
         Core::block_loop(event_loop, core);
     });
