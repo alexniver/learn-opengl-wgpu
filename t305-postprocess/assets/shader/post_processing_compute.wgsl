@@ -14,17 +14,19 @@ fn cp_main(@builtin(global_invocation_id) idx: vec3<u32>) {
     }
     let OFFSET: i32 = 1;
 
+    // edge effect
     var kernel: array<i32, 9> = array<i32, 9>(
-        -1,
-        -1,
-        -1,
-        -1,
-        9,
-        -1,
-        -1,
-        -1,
-        -1,
+        1,
+        1,
+        1,
+        1,
+        -8,
+        1,
+        1,
+        1,
+        1,
     );
+
 
     var offset_arr: array<vec2<i32>, 9> = array<vec2<i32>, 9>(
         vec2<i32>(-OFFSET, OFFSET),
