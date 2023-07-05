@@ -24,6 +24,14 @@ var texture_post_processing: texture_2d<f32>;
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
+    let t = textureSample(texture_post_processing, texture_post_processing_sampler, in.tex_coord);
     //return vec4<f32>(1.0, 1.0, 0.0, 1.0);
-    return textureSample(texture_post_processing, texture_post_processing_sampler, in.tex_coord);
+
+    // Inversion
+    //return vec4<f32>(1.0 - t.rgb, 1.0);
+
+    // Grayscale
+    //let average = 0.2126 * t.r + 0.7152 * t.g + 0.0722 * t.b;
+    //return vec4<f32>(average, average, average, 1.0);
+    return t;
 }

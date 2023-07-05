@@ -1,9 +1,9 @@
 use std::time::Instant;
 
 use wgpu::{
-    util::DeviceExt, Adapter, Backends, BindGroup, BindGroupLayout, Buffer, Device,
-    DeviceDescriptor, Features, IndexFormat, Instance, PresentMode, Queue, RenderPipeline, Sampler,
-    ShaderStages, Surface, SurfaceConfiguration, TextureUsages, TextureView,
+    util::DeviceExt, Adapter, Backends, BindGroup, BindGroupLayout, Buffer, ComputePipeline,
+    Device, DeviceDescriptor, Features, IndexFormat, Instance, PresentMode, Queue, RenderPipeline,
+    Sampler, ShaderStages, Surface, SurfaceConfiguration, TextureUsages, TextureView,
 };
 use winit::{dpi::PhysicalPosition, event_loop::EventLoop, window::Window};
 
@@ -16,7 +16,10 @@ use crate::{
     material::Material,
     model::DrawMethod,
     model_light::ModelLight,
-    texture::{self, gen_texture_depth, gen_texture_sampler, gen_texture_view_post_processing},
+    texture::{
+        self, gen_texture_depth, gen_texture_sampler, gen_texture_view_post_processing_in,
+        gen_texture_view_post_processing_out,
+    },
     transform::TransformRawIT,
     vertex::Vertex,
 };
@@ -35,9 +38,13 @@ pub struct Core {
     pub input: Input,
 
     pub render_pipline_post_processing: RenderPipeline,
+    pub compute_pipline_post_processing: ComputePipeline,
     pub bind_group_layout_post_processing: BindGroupLayout,
+    pub bind_group_layout_post_processing_compute: BindGroupLayout,
     pub bind_group_post_processing: BindGroup,
-    pub texture_view_post_processing: TextureView,
+    pub bind_group_post_processing_compute: BindGroup,
+    pub texture_view_post_processing_compute_in: TextureView,
+    pub texture_view_post_processing_compute_out: TextureView,
     pub vertex_buffer_post_processing: Buffer,
     pub index_buffer_post_processing: Buffer,
     pub index_post_processing_len: u32,
@@ -266,6 +273,43 @@ impl Core {
                 ],
             });
 
+        let bind_group_layout_post_processing_compute =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Bind Group Layout Post Processing Compute"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::WriteOnly,
+                            format: wgpu::TextureFormat::Rgba8Unorm,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
+            });
+
         let render_pipline_layout_mesh =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipline Layout"),
@@ -288,6 +332,12 @@ impl Core {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipline Layout Post Processing"),
                 bind_group_layouts: &[&bind_group_layout_post_processing],
+                push_constant_ranges: &[],
+            });
+        let compute_pipline_layout_post_processing =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Compute Pipline Layout Post Processing"),
+                bind_group_layouts: &[&bind_group_layout_post_processing_compute],
                 push_constant_ranges: &[],
             });
 
@@ -433,6 +483,20 @@ impl Core {
                 multiview: None,
             });
 
+        let compute_shader =
+            std::fs::read_to_string("assets/shader/post_processing_compute.wgsl").unwrap();
+        let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Compute Pipline Post Processing"),
+            source: wgpu::ShaderSource::Wgsl(compute_shader.into()),
+        });
+
+        let compute_pipline_post_processing =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipline Post Processing"),
+                layout: Some(&compute_pipline_layout_post_processing),
+                module: &compute_shader,
+                entry_point: "cp_main",
+            });
         let camera = Camera::new(surface_config.width as _, surface_config.height as _);
         let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("View Buffer"),
@@ -565,8 +629,10 @@ impl Core {
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-        let texture_view_post_processing =
-            gen_texture_view_post_processing(&device, &surface_config);
+        let texture_view_post_processing_compute_in =
+            gen_texture_view_post_processing_in(&device, &surface_config);
+        let texture_view_post_processing_compute_out =
+            gen_texture_view_post_processing_out(&device, &surface_config);
         let bind_group_post_processing = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Bind Group Post Processing"),
             layout: &bind_group_layout_post_processing,
@@ -577,10 +643,43 @@ impl Core {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&texture_view_post_processing),
+                    resource: wgpu::BindingResource::TextureView(
+                        &texture_view_post_processing_compute_out,
+                    ),
                 },
             ],
         });
+
+        let texture_size_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Texture Size Buffer"),
+            contents: bytemuck::cast_slice(&[surface_config.width, surface_config.height]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+        let bind_group_post_processing_compute =
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bind Group Post Processing Compute"),
+                layout: &bind_group_layout_post_processing_compute,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(
+                            &texture_view_post_processing_compute_in,
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(
+                            &texture_view_post_processing_compute_out,
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Buffer(
+                            texture_size_buffer.as_entire_buffer_binding(),
+                        ),
+                    },
+                ],
+            });
 
         Self {
             window,
@@ -597,9 +696,13 @@ impl Core {
             texture_sampler,
 
             render_pipline_post_processing,
+            compute_pipline_post_processing,
             bind_group_layout_post_processing,
+            bind_group_layout_post_processing_compute,
             bind_group_post_processing,
-            texture_view_post_processing,
+            bind_group_post_processing_compute,
+            texture_view_post_processing_compute_in,
+            texture_view_post_processing_compute_out,
             vertex_buffer_post_processing,
             index_buffer_post_processing,
             index_post_processing_len: indices_post_processing.len() as u32,
@@ -641,8 +744,11 @@ impl Core {
 
         self.texture_depth = gen_texture_depth(&self.device, &self.surface_config);
 
-        self.texture_view_post_processing =
-            gen_texture_view_post_processing(&self.device, &self.surface_config);
+        self.texture_view_post_processing_compute_in =
+            gen_texture_view_post_processing_in(&self.device, &self.surface_config);
+        self.texture_view_post_processing_compute_out =
+            gen_texture_view_post_processing_out(&self.device, &self.surface_config);
+
         self.bind_group_post_processing =
             self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Bind Group Post Processing"),
@@ -655,7 +761,43 @@ impl Core {
                     wgpu::BindGroupEntry {
                         binding: 1,
                         resource: wgpu::BindingResource::TextureView(
-                            &self.texture_view_post_processing,
+                            &self.texture_view_post_processing_compute_out,
+                        ),
+                    },
+                ],
+            });
+
+        let texture_size_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Texture Size Buffer"),
+                    contents: bytemuck::cast_slice(&[
+                        self.surface_config.width,
+                        self.surface_config.height,
+                    ]),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
+        self.bind_group_post_processing_compute =
+            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bind Group Post Processing Compute"),
+                layout: &self.bind_group_layout_post_processing_compute,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(
+                            &self.texture_view_post_processing_compute_in,
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(
+                            &self.texture_view_post_processing_compute_out,
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Buffer(
+                            texture_size_buffer.as_entire_buffer_binding(),
                         ),
                     },
                 ],
@@ -680,7 +822,7 @@ impl Core {
                 label: Some("Render Pass"),
                 color_attachments: &[
                     Some(wgpu::RenderPassColorAttachment {
-                        view: &self.texture_view_post_processing,
+                        view: &texture_view,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -693,7 +835,7 @@ impl Core {
                         },
                     }),
                     Some(wgpu::RenderPassColorAttachment {
-                        view: &texture_view,
+                        view: &self.texture_view_post_processing_compute_in,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -740,6 +882,22 @@ impl Core {
             }
         }
 
+        // compute pipline
+        // compute kernel effect
+        {
+            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Compute Pass Post Processing"),
+            });
+            compute_pass.set_pipeline(&self.compute_pipline_post_processing);
+            compute_pass.set_bind_group(0, &self.bind_group_post_processing_compute, &[]);
+            compute_pass.dispatch_workgroups(
+                (self.surface_config.width as f32 / 8.0).ceil() as u32,
+                (self.surface_config.height as f32 / 8.0).ceil() as u32,
+                1,
+            );
+        }
+
+        // draw final texture
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass Post Processing"),

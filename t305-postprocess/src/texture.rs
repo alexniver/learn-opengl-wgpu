@@ -59,7 +59,7 @@ pub fn gen_texture_view(
     Ok(texture.create_view(&wgpu::TextureViewDescriptor::default()))
 }
 
-pub fn gen_texture_view_post_processing(
+pub fn gen_texture_view_post_processing_in(
     device: &wgpu::Device,
     surface_config: &wgpu::SurfaceConfiguration,
 ) -> wgpu::TextureView {
@@ -76,6 +76,30 @@ pub fn gen_texture_view_post_processing(
             dimension: wgpu::TextureDimension::D2,
             format: surface_config.format,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        })
+        .create_view(&wgpu::TextureViewDescriptor::default())
+}
+
+pub fn gen_texture_view_post_processing_out(
+    device: &wgpu::Device,
+    surface_config: &wgpu::SurfaceConfiguration,
+) -> wgpu::TextureView {
+    device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("Texture"),
+            size: wgpu::Extent3d {
+                width: surface_config.width,
+                height: surface_config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            // format: surface_config.format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING,
+            // | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         })
         .create_view(&wgpu::TextureViewDescriptor::default())
