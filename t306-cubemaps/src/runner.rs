@@ -3,7 +3,7 @@ use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 use crate::{
     core::Core,
-    material::Material,
+    material::{Material, RenderMethod},
     model::{DrawMethod, Model},
     texture::gen_texture_view,
     transform::Transform,
@@ -20,13 +20,45 @@ pub fn run() {
         // load_box_model(&mut core);
         // load_rect_model(&mut core);
         // load_triangle_model(&mut core);
-        load_gltf_model(&mut core);
+        load_gltf_model(
+            &mut core,
+            &vec![Transform::new(
+                Vec3::new(0.0, 0.0, 0.0),
+                Quat::IDENTITY,
+                Vec3::ONE,
+            )],
+            RenderMethod::NORMAL,
+        );
+
+        load_gltf_model(
+            &mut core,
+            &vec![Transform::new(
+                Vec3::new(3.0, 0.0, 0.0),
+                Quat::IDENTITY,
+                Vec3::ONE,
+            )],
+            RenderMethod::REFLACT,
+        );
+
+        load_gltf_model(
+            &mut core,
+            &vec![Transform::new(
+                Vec3::new(6.0, 0.0, 0.0),
+                Quat::IDENTITY,
+                Vec3::ONE,
+            )],
+            RenderMethod::REFRACT,
+        );
 
         Core::block_loop(event_loop, core);
     });
 }
 
-pub fn load_gltf_model(core: &mut Core) {
+pub fn load_gltf_model(
+    core: &mut Core,
+    transform_arr: &Vec<Transform>,
+    render_method: RenderMethod,
+) {
     let base_path = std::path::Path::new(BASE_GLTF_PATH);
 
     let gltf_path = base_path.join("box.gltf");
@@ -69,7 +101,7 @@ pub fn load_gltf_model(core: &mut Core) {
             }
         }
 
-        let material = Material::new(texture_view, 32.0, core);
+        let material = Material::new(texture_view, 32.0, render_method, core);
         core.material_arr.push(material);
     }
 
@@ -115,14 +147,11 @@ pub fn load_gltf_model(core: &mut Core) {
                 DrawMethod::Index,
                 vertices,
                 indices,
-                vec![Transform::new(
-                    Vec3::new(0.0, 0.0, 0.0),
-                    Quat::IDENTITY,
-                    Vec3::ONE,
-                )],
+                transform_arr,
             );
 
-            core.material_arr[primitive.material().index().unwrap() as usize]
+            core.material_arr
+                [primitive.material().index().unwrap() + render_method as usize as usize]
                 .model_arr
                 .push(model);
         });
@@ -138,7 +167,7 @@ pub fn load_box_model(core: &mut Core) {
         DrawMethod::Vertex,
         Vertex::cube().into(),
         vec![],
-        transform_arr,
+        &transform_arr,
     );
     material.model_arr.push(model);
     core.material_arr.push(material);
@@ -153,7 +182,7 @@ pub fn load_rect_model(core: &mut Core) {
         DrawMethod::Index,
         vertices.into(),
         indices.into(),
-        vec![Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::ONE)],
+        &vec![Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::ONE)],
     );
     material.model_arr.push(model);
     core.material_arr.push(material);
@@ -168,7 +197,7 @@ pub fn load_triangle_model(core: &mut Core) {
         DrawMethod::Vertex,
         vertices.into(),
         vec![],
-        vec![Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::ONE)],
+        &vec![Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::ONE)],
     );
 
     material.model_arr.push(model);
@@ -184,7 +213,7 @@ fn box_material(core: &Core) -> Material {
     )
     .unwrap();
 
-    Material::new(texture_diffuse_view, 32.0, core)
+    Material::new(texture_diffuse_view, 32.0, RenderMethod::NORMAL, core)
 }
 
 fn transforms() -> Vec<Transform> {

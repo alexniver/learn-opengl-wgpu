@@ -10,8 +10,20 @@ pub struct Material {
     pub model_arr: Vec<Model>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum RenderMethod {
+    NORMAL,
+    REFLACT,
+    REFRACT,
+}
+
 impl Material {
-    pub fn new(diffuse: wgpu::TextureView, shininess: f32, core: &Core) -> Self {
+    pub fn new(
+        diffuse: wgpu::TextureView,
+        shininess: f32,
+        render_method: RenderMethod,
+        core: &Core,
+    ) -> Self {
         let device = &core.device;
 
         let color_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -24,6 +36,14 @@ impl Material {
             contents: bytemuck::bytes_of(&shininess),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
+
+        let render_method_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Render Method Buffer"),
+            contents: bytemuck::cast_slice(&[render_method as u32]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        println!("render_method: {:?}", render_method);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Material Bind Group"),
             layout: &core.material_bind_group_layout,
@@ -46,6 +66,12 @@ impl Material {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(
                         shininess_buffer.as_entire_buffer_binding(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(
+                        render_method_buffer.as_entire_buffer_binding(),
                     ),
                 },
             ],

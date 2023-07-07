@@ -102,28 +102,60 @@ var texture_diffuse: texture_2d<f32>;
 var<uniform> color: vec3<f32>;
 @group(2)@binding(3)
 var<uniform> shininess: f32;
+@group(2)@binding(4)
+var<uniform> render_method: u32; // 0: normal, 1: reflact, 2: refract
+@group(3) @binding(0)
+var sampler_skybox: sampler;
+@group(3) @binding(1)
+var texture_skybox: texture_cube<f32>;
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-    var l = vec3<f32>(0.0, 0.0, 0.0);
     let normal = normalize(in.normal);
     let view_dir = normalize(camera_pos - in.frag_pos);
+    switch render_method {
+    case 1u: {
+            return render_reflact(normal, view_dir, in.frag_pos);
+        }
+    case 2u: {
+            return render_refract(normal, view_dir, in.frag_pos);
+        }
+    default: {
+            return render_normal(normal, view_dir, in.tex_coord, in.frag_pos);
+        }
+  }
+}
 
-    let tex_diffuse = textureSample(texture_diffuse, texture_sampler, in.tex_coord).rgb;
+fn render_normal(normal: vec3<f32>, view_dir: vec3<f32>, tex_coord: vec2<f32>, frag_pos: vec3<f32>) -> vec4<f32> {
+    var l = vec3<f32>(0.0, 0.0, 0.0);
+    let tex_diffuse = textureSample(texture_diffuse, texture_sampler, tex_coord).rgb;
 
     for (var i: u32 = 0u; i < arrayLength(&light_direction_arr.arr); i = i + 1u) {
         l += do_light_direction(light_direction_arr.arr[i], normal, view_dir, tex_diffuse);
     }
 
     for (var i: u32 = 0u; i < arrayLength(&light_point_arr.arr); i = i + 1u) {
-        l += do_light_point(light_point_arr.arr[i], normal, view_dir, tex_diffuse, in.frag_pos);
+        l += do_light_point(light_point_arr.arr[i], normal, view_dir, tex_diffuse, frag_pos);
     }
 
     for (var i: u32 = 0u; i < arrayLength(&light_spot_arr.arr); i = i + 1u) {
-        l += do_light_spot(light_spot_arr.arr[i], normal, tex_diffuse, in.frag_pos);
+        l += do_light_spot(light_spot_arr.arr[i], normal, tex_diffuse, frag_pos);
     }
     return vec4<f32>(l, 1.0);
-    //return vec4<f32>(1.0);
+}
+
+fn render_reflact(normal: vec3<f32>, view_dir: vec3<f32>, frag_pos: vec3<f32>) -> vec4<f32> {
+    let i = normalize(frag_pos - camera_pos);
+    let r = reflect(i, normal);
+    return vec4<f32>(textureSample(texture_skybox, sampler_skybox, r).rgb, 1.0);
+}
+
+
+fn render_refract(normal: vec3<f32>, view_dir: vec3<f32>, frag_pos: vec3<f32>) -> vec4<f32> {
+    let ratio = 1.00 / 1.52;
+    let i = normalize(frag_pos - camera_pos);
+    let r = refract(i, normal, ratio);
+    return vec4<f32>(textureSample(texture_skybox, sampler_skybox, r).rgb, 1.0);
 }
 
 fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>) -> vec3<f32> {

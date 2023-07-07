@@ -22,7 +22,7 @@ impl Model {
         draw_method: DrawMethod,
         vertices: Vec<Vertex>,
         indices: Vec<u32>,
-        transform_arr: Vec<Transform>,
+        transform_arr: &Vec<Transform>,
     ) -> Self {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),

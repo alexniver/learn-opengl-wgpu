@@ -3,6 +3,7 @@ use glam::{Mat4, Quat, Vec3};
 const MAT4_NUM: usize = 1;
 const MAT4_NUM_IT: usize = 2;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,

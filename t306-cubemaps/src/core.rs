@@ -235,6 +235,16 @@ impl Core {
                         },
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -268,6 +278,7 @@ impl Core {
                     &camera_bind_group_layout,
                     &light_arr_bind_group_layout,
                     &material_bind_group_layout,
+                    &bind_group_layout_skybox,
                 ],
                 push_constant_ranges: &[],
             });
@@ -647,6 +658,7 @@ impl Core {
             render_pass.set_pipeline(&self.render_pipline_mesh);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_bind_group(1, &self.light_arr_bind_group, &[]);
+            render_pass.set_bind_group(3, &self.bind_group_skybox, &[]);
 
             for material in &self.material_arr {
                 render_pass.set_bind_group(2, &material.bind_group, &[]);
