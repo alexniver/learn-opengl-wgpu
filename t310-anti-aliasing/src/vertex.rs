@@ -45,6 +45,20 @@ impl Vertex {
         )
     }
 
+    pub fn rect_full_screen() -> ([Self; 4], [u32; 6]) {
+        let min = -1.0;
+        let max = 1.0;
+        (
+            [
+                Self::new([min, min, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0]),
+                Self::new([max, min, 0.0], [0.0, 0.0, 1.0], [1.0, 1.0]),
+                Self::new([max, max, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0]),
+                Self::new([min, max, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0]),
+            ],
+            [0, 1, 3, 1, 2, 3],
+        )
+    }
+
     pub fn cube() -> [Self; 36] {
         [
             // front

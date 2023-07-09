@@ -16,7 +16,9 @@ use crate::{
     material::Material,
     model::DrawMethod,
     model_light::ModelLight,
-    texture::{self, gen_texture_depth, gen_texture_msaa, gen_texture_sampler},
+    texture::{
+        self, gen_texture_depth, gen_texture_msaa, gen_texture_post_processing, gen_texture_sampler,
+    },
     transform::TransformRawIT,
     vertex::Vertex,
 };
@@ -32,6 +34,7 @@ pub struct Core {
     pub queue: Queue,
     pub surface_config: SurfaceConfiguration,
     pub render_pipline_mesh: RenderPipeline,
+    pub render_pipline_post_processing: RenderPipeline,
     pub camera: Camera,
     pub input: Input,
 
@@ -50,6 +53,14 @@ pub struct Core {
     pub view_buffer: Buffer,
     pub proj_buffer: Buffer,
     pub camera_pos_buffer: Buffer,
+
+    pub buffer_vertex_post_processing: Buffer,
+    pub buffer_index_post_processing: Buffer,
+    pub index_num_post_processing: u32,
+
+    pub bind_group_layout_post_processing: BindGroupLayout,
+    pub bind_group_post_processing: BindGroup,
+    pub texture_post_processing: TextureView,
 
     pub texture_depth: TextureView,
     pub texture_msaa: TextureView,
@@ -243,7 +254,7 @@ impl Core {
             });
 
         let render_pipline_mesh = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipline"),
+            label: Some("Render Pipline Mesh"),
             layout: Some(&render_pipline_layout_mesh),
             vertex: wgpu::VertexState {
                 module: &mesh_shader,
@@ -281,14 +292,94 @@ impl Core {
             fragment: Some(wgpu::FragmentState {
                 module: &mesh_shader,
                 entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
+                targets: &[
+                    Some(wgpu::ColorTargetState {
+                        format: surface_config.format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    }),
+                    Some(wgpu::ColorTargetState {
+                        format: surface_config.format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    }),
+                ],
             }),
             multiview: None,
         });
+
+        let bind_group_layout_post_processing =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Bind Group Layout Post Processing"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                ],
+            });
+
+        let render_pipline_layout_post_processing =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipline Layout Post Processing"),
+                bind_group_layouts: &[&bind_group_layout_post_processing],
+                push_constant_ranges: &[],
+            });
+
+        let shader_post_processing =
+            std::fs::read_to_string("assets/shader/post_processing.wgsl").unwrap();
+        let shader_post_processing = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Shader Post Processing"),
+            source: wgpu::ShaderSource::Wgsl(shader_post_processing.into()),
+        });
+
+        let render_pipline_post_processing =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Render Pipline Post Processing"),
+                layout: Some(&render_pipline_layout_post_processing),
+                vertex: wgpu::VertexState {
+                    module: &shader_post_processing,
+                    entry_point: "vs_main",
+                    buffers: &[Vertex::vertex_buffer_layout()],
+                },
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader_post_processing,
+                    entry_point: "fs_main",
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: surface_config.format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                multiview: None,
+            });
 
         let camera = Camera::new(surface_config.width as _, surface_config.height as _);
         let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -409,6 +500,36 @@ impl Core {
         let texture_depth = gen_texture_depth(&device, &surface_config, SAMPLE_COUNT);
 
         let texture_msaa = gen_texture_msaa(&device, &surface_config, SAMPLE_COUNT);
+        let texture_post_processing = gen_texture_post_processing(&device, &surface_config);
+
+        let bind_group_post_processing = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Bind Group Post Processing"),
+            layout: &bind_group_layout_post_processing,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Sampler(&texture_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&texture_post_processing),
+                },
+            ],
+        });
+
+        let (vertices_post_processing, indices_post_processing) = Vertex::rect_full_screen();
+        let buffer_vertex_post_processing =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Buffer Vertex Post Processing"),
+                contents: bytemuck::cast_slice(&vertices_post_processing),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let buffer_index_post_processing =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Buffer Index Post Processing"),
+                contents: bytemuck::cast_slice(&indices_post_processing),
+                usage: wgpu::BufferUsages::INDEX,
+            });
 
         Self {
             window,
@@ -419,6 +540,7 @@ impl Core {
             queue,
             surface_config,
             render_pipline_mesh,
+            render_pipline_post_processing,
             camera,
             input,
             texture_sampler,
@@ -437,6 +559,14 @@ impl Core {
             view_buffer,
             proj_buffer,
             camera_pos_buffer,
+
+            buffer_vertex_post_processing,
+            buffer_index_post_processing,
+            index_num_post_processing: indices_post_processing.len() as _,
+
+            bind_group_layout_post_processing,
+            bind_group_post_processing,
+            texture_post_processing,
 
             texture_depth,
             texture_msaa,
@@ -461,6 +591,23 @@ impl Core {
 
         self.texture_depth = gen_texture_depth(&self.device, &self.surface_config, SAMPLE_COUNT);
         self.texture_msaa = gen_texture_msaa(&self.device, &self.surface_config, SAMPLE_COUNT);
+        self.texture_post_processing =
+            gen_texture_post_processing(&self.device, &self.surface_config);
+        self.bind_group_post_processing =
+            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bind Group Post Processing"),
+                layout: &self.bind_group_layout_post_processing,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Sampler(&self.texture_sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&self.texture_post_processing),
+                    },
+                ],
+            });
     }
 
     fn render(&self) {
@@ -479,19 +626,34 @@ impl Core {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.texture_msaa,
-                    resolve_target: Some(&texture_view),
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: true,
-                    },
-                })],
+                color_attachments: &[
+                    Some(wgpu::RenderPassColorAttachment {
+                        view: &self.texture_msaa,
+                        resolve_target: Some(&texture_view),
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color {
+                                r: 0.1,
+                                g: 0.2,
+                                b: 0.3,
+                                a: 1.0,
+                            }),
+                            store: true,
+                        },
+                    }),
+                    Some(wgpu::RenderPassColorAttachment {
+                        view: &self.texture_msaa,
+                        resolve_target: Some(&self.texture_post_processing),
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color {
+                                r: 0.1,
+                                g: 0.2,
+                                b: 0.3,
+                                a: 1.0,
+                            }),
+                            store: true,
+                        },
+                    }),
+                ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.texture_depth,
                     depth_ops: Some(wgpu::Operations {
@@ -524,6 +686,35 @@ impl Core {
                     }
                 }
             }
+        }
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass Post Processing"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &texture_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
+                        store: true,
+                    },
+                })],
+                depth_stencil_attachment: None,
+            });
+
+            render_pass.set_pipeline(&self.render_pipline_post_processing);
+            render_pass.set_vertex_buffer(0, self.buffer_vertex_post_processing.slice(..));
+            render_pass.set_index_buffer(
+                self.buffer_index_post_processing.slice(..),
+                wgpu::IndexFormat::Uint32,
+            );
+            render_pass.set_bind_group(0, &self.bind_group_post_processing, &[]);
+            render_pass.draw_indexed(0..self.index_num_post_processing, 0, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
