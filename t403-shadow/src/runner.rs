@@ -140,7 +140,7 @@ pub fn load_plane_model(core: &mut Core) {
         vertices.into(),
         indices.into(),
         vec![Transform::new(
-            Vec3::new(0.0, -0.5, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
             Quat::IDENTITY,
             Vec3::ONE,
         )],
