@@ -1,0 +1,20 @@
+[package]
+name = "t207-gltf"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+winit = "0.28"
+env_logger = "0.10"
+log = "0.4"
+glam = "0.24"
+pollster = "0.3"
+image = {version = "0.24", features = ["jpeg", "png"]}
+bytemuck = {version = "1.13", features = ["derive"]}
+anyhow = "1.0"
+wgpu = "0.16"
+gltf = "1.2.0"
+url-escape = "0.1"
+rand = "0.8"
