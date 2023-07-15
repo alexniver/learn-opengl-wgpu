@@ -1,6 +1,6 @@
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, BindGroupLayout, Sampler};
 
-use crate::{core::Core, model::Model};
+use crate::{model::Model, pipe_hub::PipeHub};
 
 pub struct Material {
     pub diffuse: wgpu::TextureView,
@@ -11,7 +11,13 @@ pub struct Material {
 }
 
 impl Material {
-    pub fn new(diffuse: wgpu::TextureView, shininess: f32, core: &Core) -> Self {
+    pub fn new(
+        diffuse: wgpu::TextureView,
+        shininess: f32,
+        core: &PipeHub,
+        material_bind_group_layout: &BindGroupLayout,
+        texture_sampler: &Sampler,
+    ) -> Self {
         let device = &core.device;
 
         let color_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -26,11 +32,11 @@ impl Material {
         });
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Material Bind Group"),
-            layout: &core.material_bind_group_layout,
+            layout: material_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Sampler(&core.texture_sampler_repeat),
+                    resource: wgpu::BindingResource::Sampler(texture_sampler),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,

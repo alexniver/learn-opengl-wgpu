@@ -5,9 +5,6 @@ use crate::{transform::Transform, vertex::Vertex};
 #[derive(Debug)]
 pub struct Model {
     pub draw_method: DrawMethod,
-    // vertex: Vertex,
-    // index: Vec<u16>,
-    // transform_arr: Vec<Transform>,
     pub vertex_buffer: Buffer,
     pub index_buffer: Buffer,
     pub transform_buffer: Buffer,

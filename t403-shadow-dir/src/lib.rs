@@ -1,6 +1,5 @@
 pub mod camera;
 pub mod color;
-pub mod core;
 pub mod input;
 pub mod light_direction;
 pub mod light_point;
@@ -8,6 +7,9 @@ pub mod light_spot;
 pub mod material;
 pub mod model;
 pub mod model_light;
+pub mod pipe_depth;
+pub mod pipe_hub;
+pub mod pipe_mesh;
 pub mod runner;
 pub mod texture;
 pub mod transform;

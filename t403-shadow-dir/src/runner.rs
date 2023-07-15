@@ -2,9 +2,10 @@ use glam::{Quat, Vec3};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 use crate::{
-    core::Core,
+    light_direction::LightDirection,
     material::Material,
     model::{DrawMethod, Model},
+    pipe_hub::PipeHub,
     texture::gen_texture_view,
     transform::Transform,
     vertex::Vertex,
@@ -16,18 +17,28 @@ pub fn run() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     pollster::block_on(async {
-        let mut core = Core::new(window).await;
+        let mut core = PipeHub::new(window).await;
         // load_box_model(&mut core);
         // load_rect_model(&mut core);
         // load_triangle_model(&mut core);
-        // load_gltf_model(&mut core);
+        load_gltf_model(&mut core);
         load_plane_model(&mut core);
+        core.pipe_mesh.add_light_direction(
+            &mut core.queue,
+            LightDirection::new(
+                [0.3, -1.0, -0.3],
+                [1.0, 1.0, 1.0, 1.0],
+                [0.05, 0.05, 0.05],
+                [0.5, 0.5, 0.5],
+                [0.2, 0.2, 0.2],
+            ),
+        );
 
-        Core::block_loop(event_loop, core);
+        PipeHub::block_loop(event_loop, core);
     });
 }
 
-pub fn load_gltf_model(core: &mut Core) {
+pub fn load_gltf_model(core: &mut PipeHub) {
     let base_path = std::path::Path::new(BASE_GLTF_PATH);
 
     let gltf_path = base_path.join("box.gltf");
@@ -70,8 +81,14 @@ pub fn load_gltf_model(core: &mut Core) {
             }
         }
 
-        let material = Material::new(texture_view, 32.0, core);
-        core.material_arr.push(material);
+        let material = Material::new(
+            texture_view,
+            32.0,
+            core,
+            &core.pipe_mesh.bind_group_layout_material,
+            &core.pipe_mesh.sampler,
+        );
+        core.pipe_mesh.material_arr.push(material);
     }
 
     for mesh in gltf_info.meshes() {
@@ -123,14 +140,14 @@ pub fn load_gltf_model(core: &mut Core) {
                 )],
             );
 
-            core.material_arr[primitive.material().index().unwrap() as usize]
+            core.pipe_mesh.material_arr[primitive.material().index().unwrap() as usize]
                 .model_arr
                 .push(model);
         });
     }
 }
 
-pub fn load_plane_model(core: &mut Core) {
+pub fn load_plane_model(core: &mut PipeHub) {
     let mut material = plane_material(core);
 
     let (vertices, indices) = Vertex::plane();
@@ -140,16 +157,16 @@ pub fn load_plane_model(core: &mut Core) {
         vertices.into(),
         indices.into(),
         vec![Transform::new(
-            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
             Quat::IDENTITY,
             Vec3::ONE,
         )],
     );
     material.model_arr.push(model);
-    core.material_arr.push(material);
+    core.pipe_mesh.material_arr.push(material);
 }
 
-pub fn load_box_model(core: &mut Core) {
+pub fn load_box_model(core: &mut PipeHub) {
     let mut material = box_material(core);
 
     let transform_arr = transforms();
@@ -161,10 +178,10 @@ pub fn load_box_model(core: &mut Core) {
         transform_arr,
     );
     material.model_arr.push(model);
-    core.material_arr.push(material);
+    core.pipe_mesh.material_arr.push(material);
 }
 
-pub fn load_rect_model(core: &mut Core) {
+pub fn load_rect_model(core: &mut PipeHub) {
     let mut material = box_material(core);
 
     let (vertices, indices) = Vertex::rect();
@@ -176,10 +193,10 @@ pub fn load_rect_model(core: &mut Core) {
         vec![Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::ONE)],
     );
     material.model_arr.push(model);
-    core.material_arr.push(material);
+    core.pipe_mesh.material_arr.push(material);
 }
 
-pub fn load_triangle_model(core: &mut Core) {
+pub fn load_triangle_model(core: &mut PipeHub) {
     let mut material = box_material(core);
 
     let vertices = Vertex::triangle();
@@ -192,10 +209,10 @@ pub fn load_triangle_model(core: &mut Core) {
     );
 
     material.model_arr.push(model);
-    core.material_arr.push(material);
+    core.pipe_mesh.material_arr.push(material);
 }
 
-fn plane_material(core: &Core) -> Material {
+fn plane_material(core: &PipeHub) -> Material {
     let (device, queue) = (&core.device, &core.queue);
     let texture_diffuse_view = gen_texture_view(
         std::fs::read("assets/texture/wood.png").unwrap(),
@@ -204,10 +221,16 @@ fn plane_material(core: &Core) -> Material {
     )
     .unwrap();
 
-    Material::new(texture_diffuse_view, 32.0, core)
+    Material::new(
+        texture_diffuse_view,
+        32.0,
+        core,
+        &core.pipe_mesh.bind_group_layout_material,
+        &core.pipe_mesh.sampler_repeat,
+    )
 }
 
-fn box_material(core: &Core) -> Material {
+fn box_material(core: &PipeHub) -> Material {
     let (device, queue) = (&core.device, &core.queue);
     let texture_diffuse_view = gen_texture_view(
         std::fs::read("assets/texture/container2.png").unwrap(),
@@ -216,7 +239,13 @@ fn box_material(core: &Core) -> Material {
     )
     .unwrap();
 
-    Material::new(texture_diffuse_view, 32.0, core)
+    Material::new(
+        texture_diffuse_view,
+        32.0,
+        core,
+        &core.pipe_mesh.bind_group_layout_material,
+        &core.pipe_mesh.sampler,
+    )
 }
 
 fn transforms() -> Vec<Transform> {

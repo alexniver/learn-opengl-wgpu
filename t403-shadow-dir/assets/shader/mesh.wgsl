@@ -142,10 +142,10 @@ fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_d
     //let reflect_dir = reflect(-light_dir, normal);
     //let spec = pow(max(dot(view_dir, reflect_dir), 0.0), shininess);
 
-    //let halfway_dir = normalize(light_dir + view_dir);
-    //let spec = pow(max(dot(view_dir, halfway_dir), 0.0), shininess);
+    let halfway_dir = normalize(light_dir + view_dir);
+    let spec = pow(max(dot(view_dir, halfway_dir), 0.0), shininess);
 
-    return ambient + diffuse;
+    return ambient + diffuse + spec;
 }
 
 fn do_light_point(light_point: LightPoint, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>, frag_pos: vec3<f32>) -> vec3<f32> {
