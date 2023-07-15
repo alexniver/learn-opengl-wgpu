@@ -79,7 +79,9 @@ impl PipeHub {
         let pipe_depth = PipeDepth::new(
             &device,
             &surface_config,
-            &pipe_mesh.texture_view_depth_resolve,
+            &pipe_mesh.texture_view_depth,
+            surface_config.width,
+            surface_config.height,
         );
 
         Self {
@@ -108,8 +110,12 @@ impl PipeHub {
         self.surface.configure(&self.device, &self.surface_config);
         self.pipe_mesh
             .resize(&self.device, &self.surface_config, width, height);
-        self.pipe_depth
-            .set_texture_view_depth(&self.device, &self.pipe_mesh.texture_view_depth);
+        self.pipe_depth.set_texture_view_depth(
+            &self.device,
+            &self.pipe_mesh.texture_view_depth,
+            self.surface_config.width,
+            self.surface_config.height,
+        );
     }
 
     fn render(&mut self) {

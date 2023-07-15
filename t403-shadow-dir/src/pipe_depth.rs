@@ -1,15 +1,14 @@
 use wgpu::{
     util::DeviceExt, BindGroup, BindGroupLayout, Buffer, CommandEncoder, Device, IndexFormat,
-    RenderPipeline, Sampler, SurfaceConfiguration, TextureView,
+    RenderPipeline, SurfaceConfiguration, TextureView,
 };
 
-use crate::{texture::gen_sampler_nearest, vertex::Vertex};
+use crate::vertex::Vertex;
 
 pub struct PipeDepth {
     pub render_pipline: RenderPipeline,
     pub bind_group_layout: BindGroupLayout,
     pub bind_group: BindGroup,
-    pub sampler_depth: Sampler,
     pub vertex_buffer: Buffer,
     pub index_buffer: Buffer,
     pub index_len: u32,
@@ -20,6 +19,8 @@ impl PipeDepth {
         device: &Device,
         surface_config: &SurfaceConfiguration,
         texture_view_depth: &TextureView,
+        width: u32,
+        height: u32,
     ) -> Self {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Bind Group Layout Pipe Depth"),
@@ -27,16 +28,20 @@ impl PipeDepth {
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: true,
+                    },
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -91,7 +96,11 @@ impl PipeDepth {
             multiview: None,
         });
 
-        let sampler_depth = gen_sampler_nearest(device);
+        let buffer_screen_size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Buffer Screen Size"),
+            contents: bytemuck::cast_slice(&[width, height]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Bind Group Pipe Depth"),
@@ -99,11 +108,13 @@ impl PipeDepth {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Sampler(&sampler_depth),
+                    resource: wgpu::BindingResource::TextureView(texture_view_depth),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(texture_view_depth),
+                    resource: wgpu::BindingResource::Buffer(
+                        buffer_screen_size.as_entire_buffer_binding(),
+                    ),
                 },
             ],
         });
@@ -125,25 +136,37 @@ impl PipeDepth {
             render_pipline,
             bind_group_layout,
             bind_group,
-            sampler_depth,
             vertex_buffer,
             index_buffer,
             index_len: indices.len() as u32,
         }
     }
 
-    pub fn set_texture_view_depth(&mut self, device: &Device, texture_view_depth: &TextureView) {
+    pub fn set_texture_view_depth(
+        &mut self,
+        device: &Device,
+        texture_view_depth: &TextureView,
+        width: u32,
+        height: u32,
+    ) {
+        let buffer_screen_size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Buffer Screen Size"),
+            contents: bytemuck::cast_slice(&[width, height]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
         self.bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Bind Group Pipe Depth"),
             layout: &self.bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler_depth),
+                    resource: wgpu::BindingResource::TextureView(texture_view_depth),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(texture_view_depth),
+                    resource: wgpu::BindingResource::Buffer(
+                        buffer_screen_size.as_entire_buffer_binding(),
+                    ),
                 },
             ],
         });

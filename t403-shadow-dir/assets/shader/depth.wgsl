@@ -18,15 +18,17 @@ fn vs_main(in: VertexIn) -> VertexOut {
 }
 
 @group(0)@binding(0)
-var texture_sampler: sampler;
+var texture_depth: texture_depth_multisampled_2d;
 @group(0)@binding(1)
-var texture_depth: texture_2d<f32>;
+var<uniform> screen_size: vec2<u32>;
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let near = 0.1;
     let far = 100.0;
-    let depth = textureSample(texture_depth, texture_sampler, in.tex_coord).x;
+    let x = u32(in.tex_coord.x * f32(screen_size.x));
+    let y = u32(in.tex_coord.y * f32(screen_size.y));
+    let depth = textureLoad(texture_depth, vec2<u32>(x, y), 0);
     let r = (2.0 * near) / (far + near - depth * (far - near));
     return vec4<f32>(vec3<f32>(r), 1.0);
 }

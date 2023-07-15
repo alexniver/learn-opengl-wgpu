@@ -3,7 +3,7 @@ use wgpu::{
     Queue, RenderPipeline, Sampler, SurfaceConfiguration, TextureView,
 };
 
-pub const SAMPLE_COUNT: u32 = 1;
+pub const SAMPLE_COUNT: u32 = 4;
 
 use crate::{
     camera::Camera,
@@ -14,8 +14,7 @@ use crate::{
     material::Material,
     model::DrawMethod,
     texture::{
-        self, gen_sampler_clamp, gen_sampler_repeat, gen_texture_view_depth,
-        gen_texture_view_depth_resolve, gen_texture_view_msaa,
+        self, gen_sampler_clamp, gen_sampler_repeat, gen_texture_view_depth, gen_texture_view_msaa,
     },
     transform::TransformRawIT,
     vertex::Vertex,
@@ -28,7 +27,6 @@ pub struct PipeMesh {
     pub sampler_repeat: Sampler,
 
     pub texture_view_depth: TextureView,
-    pub texture_view_depth_resolve: TextureView,
     pub texture_view_msaa: TextureView,
 
     pub bind_group_layout_material: BindGroupLayout,
@@ -339,7 +337,6 @@ impl PipeMesh {
         let sampler_repeat = gen_sampler_repeat(&device);
 
         let texture_view_depth = gen_texture_view_depth(&device, &surface_config, SAMPLE_COUNT);
-        let texture_view_depth_resolve = gen_texture_view_depth_resolve(&device, &surface_config);
 
         let texture_view_msaa = gen_texture_view_msaa(&device, &surface_config, SAMPLE_COUNT);
 
@@ -359,7 +356,6 @@ impl PipeMesh {
             buffer_proj,
             buffer_camera_pos,
             texture_view_depth,
-            texture_view_depth_resolve,
 
             texture_view_msaa,
 
@@ -389,10 +385,8 @@ impl PipeMesh {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass Mesh"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                // view: &self.texture_view_msaa,
-                // resolve_target: Some(texture_view),
-                view: texture_view,
-                resolve_target: None,
+                view: &self.texture_view_msaa,
+                resolve_target: Some(texture_view),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
                         r: 0.1,
