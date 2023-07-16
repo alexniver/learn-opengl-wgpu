@@ -16,6 +16,13 @@ const BASE_GLTF_PATH: &str = "assets/gltf/";
 pub fn run() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
+
+    window.set_cursor_visible(false);
+    window
+        .set_cursor_grab(winit::window::CursorGrabMode::Confined)
+        .or_else(|_e| window.set_cursor_grab(winit::window::CursorGrabMode::Locked))
+        .or_else(|_e| window.set_cursor_grab(winit::window::CursorGrabMode::None))
+        .unwrap();
     pollster::block_on(async {
         let mut core = PipeHub::new(window).await;
         // load_box_model(&mut core);
@@ -26,11 +33,11 @@ pub fn run() {
         core.pipe_mesh.add_light_direction(
             &mut core.queue,
             LightDirection::new(
-                [0.3, -1.0, -0.3],
+                [-0.2, -1.0, -0.3],
                 [1.0, 1.0, 1.0, 1.0],
                 [0.05, 0.05, 0.05],
                 [0.5, 0.5, 0.5],
-                [0.2, 0.2, 0.2],
+                [1.0, 1.0, 1.0],
             ),
         );
 

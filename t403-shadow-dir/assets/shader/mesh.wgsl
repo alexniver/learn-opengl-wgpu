@@ -139,11 +139,11 @@ fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_d
     let diff = max(dot(normal, light_dir), 0.0);
     let diffuse = light_color * light_direction.diffuse * (diff * tex_diffuse);
 
-    //let reflect_dir = reflect(-light_dir, normal);
-    //let spec = pow(max(dot(view_dir, reflect_dir), 0.0), shininess);
+    let reflect_dir = reflect(-light_dir, normal);
+    let spec = pow(max(dot(view_dir, reflect_dir), 0.0), shininess);
 
-    let halfway_dir = normalize(light_dir + view_dir);
-    let spec = pow(max(dot(view_dir, halfway_dir), 0.0), shininess);
+    //let halfway_dir = normalize(light_dir + view_dir);
+    //let spec = pow(max(dot(view_dir, halfway_dir), 0.0), shininess);
 
     return ambient + diffuse + spec;
 }
