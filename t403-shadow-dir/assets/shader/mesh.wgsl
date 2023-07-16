@@ -27,7 +27,7 @@ struct LightDirection {
     color: vec4<f32>,
     ambient: vec3<f32>,
     diffuse: vec3<f32>,
-    metallic: vec3<f32>,
+    specular: vec3<f32>,
 }
 
 struct LightDirectionArray {
@@ -137,15 +137,17 @@ fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_d
 
     let light_dir = normalize(-light_direction.dir);
     let diff = max(dot(normal, light_dir), 0.0);
-    let diffuse = light_color * light_direction.diffuse * (diff * tex_diffuse);
+    let diffuse = light_direction.diffuse * light_color * (diff * tex_diffuse);
 
-    let reflect_dir = reflect(-light_dir, normal);
-    let spec = pow(max(dot(view_dir, reflect_dir), 0.0), shininess);
+    //let reflect_dir = reflect(-light_dir, normal);
+    //let spec = pow(max(dot(view_dir, reflect_dir), 0.0), shininess) * light_direction.specular;
 
-    //let halfway_dir = normalize(light_dir + view_dir);
-    //let spec = pow(max(dot(view_dir, halfway_dir), 0.0), shininess);
+    let halfway_dir = normalize(light_dir + view_dir);
+    let spec = pow(max(dot(normal, halfway_dir), 0.0), shininess * 3.0);
 
-    return ambient + diffuse + spec;
+    let specular = light_direction.specular * light_color * spec * tex_diffuse;
+
+    return ambient + diffuse + specular;
 }
 
 fn do_light_point(light_point: LightPoint, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>, frag_pos: vec3<f32>) -> vec3<f32> {
