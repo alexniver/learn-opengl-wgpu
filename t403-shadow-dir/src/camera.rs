@@ -19,8 +19,6 @@ pub struct Camera {
 
     is_first_mouse_move: bool,
     mouse_sensitivity: f32,
-    last_mouse_x: f32,
-    last_mouse_y: f32,
 }
 
 impl Camera {
@@ -41,8 +39,6 @@ impl Camera {
 
             is_first_mouse_move: true,
             mouse_sensitivity: 0.1,
-            last_mouse_x: 0.0,
-            last_mouse_y: 0.0,
         }
     }
 
@@ -56,8 +52,8 @@ impl Camera {
         if self.is_first_mouse_move {
             self.is_first_mouse_move = false;
         } else {
-            self.yaw += (x - self.last_mouse_x) * self.mouse_sensitivity;
-            self.pitch -= (y - self.last_mouse_y) * self.mouse_sensitivity;
+            self.yaw += x * self.mouse_sensitivity;
+            self.pitch -= y * self.mouse_sensitivity;
             self.pitch = self.pitch.min(89.0);
             self.pitch = self.pitch.max(-89.0);
 
@@ -66,8 +62,6 @@ impl Camera {
             self.front.z = self.yaw.to_radians().sin() * self.pitch.to_radians().cos();
             self.front = self.front.normalize();
         }
-        self.last_mouse_x = x;
-        self.last_mouse_y = y;
     }
 
     pub fn moving(&mut self, input: &Input, delta_time: f32) {

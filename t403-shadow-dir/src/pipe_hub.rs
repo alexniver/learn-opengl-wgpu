@@ -184,9 +184,6 @@ impl PipeHub {
                             },
                         ..
                     } => *control_flow = winit::event_loop::ControlFlow::Exit,
-                    winit::event::WindowEvent::CursorMoved { position, .. } => {
-                        core.cursor_moved(position.x as f32, position.y as f32);
-                    }
                     winit::event::WindowEvent::MouseWheel { delta, .. } => {
                         core.mouse_wheel(delta);
                     }
@@ -200,6 +197,15 @@ impl PipeHub {
                 }
             }
             winit::event::Event::MainEventsCleared => core.window.request_redraw(),
+            winit::event::Event::DeviceEvent {
+                device_id: _,
+                event,
+            } => match event {
+                winit::event::DeviceEvent::MouseMotion { delta } => {
+                    core.cursor_moved(delta.0 as f32, delta.1 as f32);
+                }
+                _ => {}
+            },
             _ => {}
         });
     }
