@@ -18,6 +18,7 @@ pub fn run() {
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     window.set_cursor_visible(false);
+
     window
         .set_cursor_grab(winit::window::CursorGrabMode::Confined)
         .or_else(|_e| window.set_cursor_grab(winit::window::CursorGrabMode::Locked))

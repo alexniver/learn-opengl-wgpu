@@ -140,6 +140,13 @@ impl PipeHub {
     }
 
     fn update(&mut self) {
+        self.window
+            .set_cursor_position(winit::dpi::LogicalPosition::new(
+                self.surface_config.width / 2,
+                self.surface_config.height / 2,
+            ))
+            .unwrap();
+
         // let total_time = (Instant::now() - self.start_time).as_secs_f32();
         let delta_time = (Instant::now() - self.last_time).as_secs_f32();
         self.last_time = Instant::now();
