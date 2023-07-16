@@ -34,7 +34,7 @@ pub fn run() {
         core.pipe_mesh.add_light_direction(
             &mut core.queue,
             LightDirection::new(
-                [-0.2, -0.2, -0.8],
+                [-0.2, -0.5, -0.8],
                 [1.0, 1.0, 1.0, 1.0],
                 [0.05, 0.05, 0.05],
                 [0.5, 0.5, 0.5],

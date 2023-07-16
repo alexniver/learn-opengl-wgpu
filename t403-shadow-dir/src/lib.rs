@@ -10,6 +10,7 @@ pub mod model_light;
 pub mod pipe_depth;
 pub mod pipe_hub;
 pub mod pipe_mesh;
+pub mod pipe_shadow;
 pub mod runner;
 pub mod texture;
 pub mod transform;

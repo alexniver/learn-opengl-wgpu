@@ -8,7 +8,10 @@ use winit::{
     dpi::PhysicalPosition, event::MouseScrollDelta, event_loop::EventLoop, window::Window,
 };
 
-use crate::{input::Input, model_light::ModelLight, pipe_depth::PipeDepth, pipe_mesh::PipeMesh};
+use crate::{
+    input::Input, light_direction::LightDirection, model_light::ModelLight, pipe_depth::PipeDepth,
+    pipe_mesh::PipeMesh, pipe_shadow::PipeShadow,
+};
 
 pub struct PipeHub {
     pub window: Window,
@@ -20,6 +23,7 @@ pub struct PipeHub {
     pub surface_config: SurfaceConfiguration,
     pub input: Input,
 
+    pub pipe_shadow: PipeShadow,
     pub pipe_mesh: PipeMesh,
     pub pipe_depth: PipeDepth,
 
@@ -75,11 +79,12 @@ impl PipeHub {
 
         let input = Input::new();
 
+        let pipe_shadow = PipeShadow::new(&device, &surface_config);
         let pipe_mesh = PipeMesh::new(&device, &surface_config);
         let pipe_depth = PipeDepth::new(
             &device,
             &surface_config,
-            &pipe_mesh.texture_view_depth,
+            &pipe_shadow.texture_view_depth,
             surface_config.width,
             surface_config.height,
         );
@@ -94,6 +99,7 @@ impl PipeHub {
             surface_config,
             input,
 
+            pipe_shadow,
             pipe_mesh,
             pipe_depth,
 
@@ -108,11 +114,11 @@ impl PipeHub {
         self.surface_config.width = width;
         self.surface_config.height = height;
         self.surface.configure(&self.device, &self.surface_config);
-        self.pipe_mesh
-            .resize(&self.device, &self.surface_config, width, height);
+        self.pipe_mesh.resize(&self.device, &self.surface_config);
+        self.pipe_shadow.resize(&self.device, &self.surface_config);
         self.pipe_depth.set_texture_view_depth(
             &self.device,
-            &self.pipe_mesh.texture_view_depth,
+            &self.pipe_shadow.texture_view_depth,
             self.surface_config.width,
             self.surface_config.height,
         );
@@ -131,6 +137,8 @@ impl PipeHub {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
+        self.pipe_shadow
+            .render(&mut encoder, &self.pipe_mesh.material_arr);
         self.pipe_mesh.render(&mut encoder, &texture_view);
         self.pipe_depth.render(&mut encoder, &texture_view);
 
@@ -153,6 +161,11 @@ impl PipeHub {
 
         self.pipe_mesh
             .update(&mut self.queue, &self.input, delta_time);
+        self.pipe_shadow.set_light_direction(
+            &self.queue,
+            self.pipe_mesh.camera.pos,
+            &self.pipe_mesh.light_direction_arr[0],
+        );
     }
 
     fn cursor_moved(&mut self, x: f32, y: f32) {
@@ -168,18 +181,27 @@ impl PipeHub {
         }
     }
 
-    pub fn block_loop(event_loop: EventLoop<()>, mut core: PipeHub) {
+    pub fn add_direction_light(&mut self, light_direction: LightDirection) {
+        self.pipe_mesh.light_direction_arr.push(light_direction);
+        self.pipe_shadow.set_light_direction(
+            &self.queue,
+            self.pipe_mesh.camera.pos,
+            &self.pipe_mesh.light_direction_arr[0],
+        );
+    }
+
+    pub fn block_loop(event_loop: EventLoop<()>, mut hub: PipeHub) {
         event_loop.run(move |event, _, control_flow| match event {
-            winit::event::Event::RedrawRequested(window_id) if window_id == core.window.id() => {
-                core.update();
-                core.render();
+            winit::event::Event::RedrawRequested(window_id) if window_id == hub.window.id() => {
+                hub.update();
+                hub.render();
             }
             winit::event::Event::WindowEvent { window_id, event }
-                if window_id == core.window.id() =>
+                if window_id == hub.window.id() =>
             {
                 match event {
                     winit::event::WindowEvent::Resized(new_size) => {
-                        core.resize(new_size.width, new_size.height);
+                        hub.resize(new_size.width, new_size.height);
                     }
                     winit::event::WindowEvent::CloseRequested
                     | winit::event::WindowEvent::KeyboardInput {
@@ -192,24 +214,24 @@ impl PipeHub {
                         ..
                     } => *control_flow = winit::event_loop::ControlFlow::Exit,
                     winit::event::WindowEvent::MouseWheel { delta, .. } => {
-                        core.mouse_wheel(delta);
+                        hub.mouse_wheel(delta);
                     }
                     winit::event::WindowEvent::KeyboardInput {
                         input: keyboard_input,
                         ..
                     } => {
-                        core.input.on_input(keyboard_input);
+                        hub.input.on_input(keyboard_input);
                     }
                     _ => {}
                 }
             }
-            winit::event::Event::MainEventsCleared => core.window.request_redraw(),
+            winit::event::Event::MainEventsCleared => hub.window.request_redraw(),
             winit::event::Event::DeviceEvent {
                 device_id: _,
                 event,
             } => match event {
                 winit::event::DeviceEvent::MouseMotion { delta } => {
-                    core.cursor_moved(delta.0 as f32, delta.1 as f32);
+                    hub.cursor_moved(delta.0 as f32, delta.1 as f32);
                 }
                 _ => {}
             },

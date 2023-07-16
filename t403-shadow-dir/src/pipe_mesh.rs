@@ -368,14 +368,9 @@ impl PipeMesh {
         }
     }
 
-    pub fn resize(
-        &mut self,
-        device: &Device,
-        surface_config: &SurfaceConfiguration,
-        width: u32,
-        height: u32,
-    ) {
-        self.camera.update_size(width as _, height as _);
+    pub fn resize(&mut self, device: &Device, surface_config: &SurfaceConfiguration) {
+        self.camera
+            .update_size(surface_config.width as _, surface_config.height as _);
 
         self.texture_view_depth = gen_texture_view_depth(device, surface_config, SAMPLE_COUNT);
         self.texture_view_msaa = gen_texture_view_msaa(device, surface_config, SAMPLE_COUNT);
