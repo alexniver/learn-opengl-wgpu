@@ -21,8 +21,8 @@ pub struct PipeShadow {
     pub texture_view_depth: TextureView,
     pub bind_group_layout: BindGroupLayout,
     pub bind_group: BindGroup,
-    pub buffer_view: Buffer,
-    pub buffer_proj: Buffer,
+    pub buffer_view_proj: Buffer,
+    pub proj: Mat4,
 }
 
 impl PipeShadow {
@@ -31,28 +31,16 @@ impl PipeShadow {
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Bind Group Layout Shadow"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
+                count: None,
+            }],
         });
 
         let render_pipeline_layout =
@@ -108,29 +96,20 @@ impl PipeShadow {
 
         let view = Mat4::look_to_rh(Vec3::ZERO, Vec3::ZERO, Vec3::Y);
         let proj = Mat4::orthographic_rh(-10.0, 10.0, -10.0, 10.0, 1.0, 10.0);
-        let buffer_view = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Buffer Shadow View"),
-            contents: bytemuck::cast_slice(&view.to_cols_array_2d()),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let buffer_proj = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Buffer Shadow Proj"),
-            contents: bytemuck::cast_slice(&proj.to_cols_array_2d()),
+        let buffer_view_proj = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Buffer Shadow View Proj"),
+            contents: bytemuck::cast_slice(&(proj.mul_mat4(&view)).to_cols_array_2d()),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Bind Group Shadow"),
             layout: &bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(buffer_view.as_entire_buffer_binding()),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(buffer_proj.as_entire_buffer_binding()),
-                },
-            ],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(
+                    buffer_view_proj.as_entire_buffer_binding(),
+                ),
+            }],
         });
 
         Self {
@@ -138,8 +117,8 @@ impl PipeShadow {
             texture_view_depth,
             bind_group_layout,
             bind_group,
-            buffer_view,
-            buffer_proj,
+            buffer_view_proj,
+            proj,
         }
     }
 
@@ -189,9 +168,9 @@ impl PipeShadow {
     ) {
         let view = Mat4::look_to_rh(light_pos, light_direction.dir.into(), Vec3::Y);
         queue.write_buffer(
-            &self.buffer_view,
+            &self.buffer_view_proj,
             0,
-            bytemuck::cast_slice(&view.to_cols_array_2d()),
+            bytemuck::cast_slice(&(self.proj.mul_mat4(&view)).to_cols_array_2d()),
         );
     }
 }

@@ -34,8 +34,7 @@ pub struct PipeMesh {
 
     pub camera: Camera,
     pub bind_group_camera: BindGroup,
-    pub buffer_view: Buffer,
-    pub buffer_proj: Buffer,
+    pub buffer_view_proj: Buffer,
     pub buffer_camera_pos: Buffer,
 
     pub light_direction_arr: Vec<LightDirection>,
@@ -71,16 +70,6 @@ impl PipeMesh {
                     },
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
@@ -232,17 +221,12 @@ impl PipeMesh {
         });
 
         let camera = Camera::new(surface_config.width as _, surface_config.height as _);
-        let buffer_view = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Buffer View"),
-            contents: bytemuck::cast_slice(&camera.view().to_cols_array_2d()),
+        let buffer_view_proj = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Buffer View Proj"),
+            contents: bytemuck::cast_slice(&camera.view_proj().to_cols_array_2d()),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let buffer_proj = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Buffer Proj"),
-            contents: bytemuck::cast_slice(&camera.proj().to_cols_array_2d()),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
         let camera_pos: [f32; 3] = camera.pos.into();
         let buffer_camera_pos = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Buffer Camera Pos"),
@@ -256,14 +240,12 @@ impl PipeMesh {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer(buffer_view.as_entire_buffer_binding()),
+                    resource: wgpu::BindingResource::Buffer(
+                        buffer_view_proj.as_entire_buffer_binding(),
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Buffer(buffer_proj.as_entire_buffer_binding()),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
                     resource: wgpu::BindingResource::Buffer(
                         buffer_camera_pos.as_entire_buffer_binding(),
                     ),
@@ -352,8 +334,7 @@ impl PipeMesh {
             bind_group_layout_material,
             material_arr: vec![],
 
-            buffer_view,
-            buffer_proj,
+            buffer_view_proj,
             buffer_camera_pos,
             texture_view_depth,
 
@@ -429,15 +410,9 @@ impl PipeMesh {
         self.camera.moving(input, delta_time);
 
         queue.write_buffer(
-            &self.buffer_view,
+            &self.buffer_view_proj,
             0,
-            bytemuck::cast_slice(&self.camera.view().to_cols_array_2d()),
-        );
-
-        queue.write_buffer(
-            &self.buffer_proj,
-            0,
-            bytemuck::cast_slice(&self.camera.proj().to_cols_array_2d()),
+            bytemuck::cast_slice(&self.camera.view_proj().to_cols_array_2d()),
         );
 
         queue.write_buffer(

@@ -123,4 +123,8 @@ impl Camera {
     pub fn proj(&self) -> Mat4 {
         Mat4::perspective_rh(self.fov.to_radians(), self.ratio, self.z_near, self.z_far)
     }
+
+    pub fn view_proj(&self) -> Mat4 {
+        self.proj().mul_mat4(&self.view())
+    }
 }

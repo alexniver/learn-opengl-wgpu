@@ -65,10 +65,8 @@ struct LightSpotArray {
 }
 
 @group(0)@binding(0)
-var<uniform> view: mat4x4<f32>;
+var<uniform> view_proj: mat4x4<f32>;
 @group(0)@binding(1)
-var<uniform> proj: mat4x4<f32>;
-@group(0)@binding(2)
 var<uniform> camera_pos: vec3<f32>;
 
 @vertex
@@ -77,7 +75,7 @@ fn vs_main(in: VertexIn, transform: TransformIT) -> VertexOut {
     let it_model = mat3x3<f32>(transform.t4.xyz, transform.t5.xyz, transform.t6.xyz); // inverse transpose model
 
     var out: VertexOut;
-    out.clip_pos = proj * view * model * vec4<f32>(in.pos, 1.0);
+    out.clip_pos = view_proj * model * vec4<f32>(in.pos, 1.0);
     //out.clip_pos = vec4<f32>(in.pos, 1.0);
     out.frag_pos = (model * vec4<f32>(in.pos, 1.0)).xyz;
     out.normal = it_model * in.normal;
@@ -103,6 +101,7 @@ var texture_diffuse: texture_2d<f32>;
 var<uniform> color: vec3<f32>;
 @group(2)@binding(3)
 var<uniform> shininess: f32;
+
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
