@@ -33,9 +33,11 @@ pub struct PipeMesh {
     pub material_arr: Vec<Material>,
 
     pub camera: Camera,
+    pub bind_group_layout_camera: BindGroupLayout,
     pub bind_group_camera: BindGroup,
     pub buffer_view_proj: Buffer,
     pub buffer_camera_pos: Buffer,
+    pub buffer_shadow_depth_size: Buffer,
 
     pub light_direction_arr: Vec<LightDirection>,
     pub light_point_arr: Vec<LightPoint>,
@@ -47,7 +49,13 @@ pub struct PipeMesh {
 }
 
 impl PipeMesh {
-    pub fn new(device: &Device, surface_config: &SurfaceConfiguration) -> Self {
+    pub fn new(
+        device: &Device,
+        surface_config: &SurfaceConfiguration,
+        buffer_view_proj_light: &Buffer,
+        texture_view_shadow_depth: &TextureView,
+        shadow_depth_size: [u32; 2],
+    ) -> Self {
         let mesh_shader = std::fs::read_to_string("assets/shader/mesh.wgsl").unwrap();
         let mesh_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader Mesh"),
@@ -75,6 +83,36 @@ impl PipeMesh {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
                             min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: true,
                         },
                         count: None,
                     },
@@ -234,8 +272,15 @@ impl PipeMesh {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
+        let buffer_shadow_depth_size =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Buffer Screen Size"),
+                contents: bytemuck::cast_slice(&shadow_depth_size),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
         let bind_group_camera = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Bind Group View"),
+            label: Some("Bind Group Camera"),
             layout: &bind_group_layout_camera,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -249,6 +294,22 @@ impl PipeMesh {
                     resource: wgpu::BindingResource::Buffer(
                         buffer_camera_pos.as_entire_buffer_binding(),
                     ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(
+                        buffer_view_proj_light.as_entire_buffer_binding(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(
+                        buffer_shadow_depth_size.as_entire_buffer_binding(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(&texture_view_shadow_depth),
                 },
             ],
         });
@@ -318,7 +379,12 @@ impl PipeMesh {
         let sampler = gen_sampler_clamp(&device);
         let sampler_repeat = gen_sampler_repeat(&device);
 
-        let texture_view_depth = gen_texture_view_depth(&device, &surface_config, SAMPLE_COUNT);
+        let texture_view_depth = gen_texture_view_depth(
+            &device,
+            surface_config.width,
+            surface_config.height,
+            SAMPLE_COUNT,
+        );
 
         let texture_view_msaa = gen_texture_view_msaa(&device, &surface_config, SAMPLE_COUNT);
 
@@ -329,6 +395,7 @@ impl PipeMesh {
             sampler,
             sampler_repeat,
 
+            bind_group_layout_camera,
             bind_group_camera,
             bind_group_light_arr,
             bind_group_layout_material,
@@ -337,6 +404,7 @@ impl PipeMesh {
             buffer_view_proj,
             buffer_camera_pos,
             texture_view_depth,
+            buffer_shadow_depth_size,
 
             texture_view_msaa,
 
@@ -353,7 +421,12 @@ impl PipeMesh {
         self.camera
             .update_size(surface_config.width as _, surface_config.height as _);
 
-        self.texture_view_depth = gen_texture_view_depth(device, surface_config, SAMPLE_COUNT);
+        self.texture_view_depth = gen_texture_view_depth(
+            device,
+            surface_config.width,
+            surface_config.height,
+            SAMPLE_COUNT,
+        );
         self.texture_view_msaa = gen_texture_view_msaa(device, surface_config, SAMPLE_COUNT);
     }
 
@@ -457,5 +530,47 @@ impl PipeMesh {
             0,
             bytemuck::cast_slice(&self.light_spot_arr),
         );
+    }
+
+    pub fn set_shadow_depth(
+        &mut self,
+        device: &Device,
+        buffer_view_proj_light: &Buffer,
+        texture_view_shadow_depth: &TextureView,
+    ) {
+        self.bind_group_camera = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Bind Group Camera"),
+            layout: &self.bind_group_layout_camera,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(
+                        self.buffer_view_proj.as_entire_buffer_binding(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(
+                        self.buffer_camera_pos.as_entire_buffer_binding(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(
+                        buffer_view_proj_light.as_entire_buffer_binding(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(
+                        self.buffer_shadow_depth_size.as_entire_buffer_binding(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(&texture_view_shadow_depth),
+                },
+            ],
+        });
     }
 }

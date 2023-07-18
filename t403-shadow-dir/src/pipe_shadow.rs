@@ -1,7 +1,7 @@
 use glam::{Mat4, Vec3};
 use wgpu::{
     util::DeviceExt, BindGroup, BindGroupLayout, Buffer, CommandEncoder, Device, IndexFormat,
-    Queue, RenderPipeline, SurfaceConfiguration, TextureView,
+    Queue, RenderPipeline, TextureView,
 };
 
 use crate::{
@@ -23,11 +23,13 @@ pub struct PipeShadow {
     pub bind_group: BindGroup,
     pub buffer_view_proj: Buffer,
     pub proj: Mat4,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl PipeShadow {
-    pub fn new(device: &Device, surface_config: &SurfaceConfiguration) -> Self {
-        let texture_view_depth = gen_texture_view_depth(device, surface_config, SAMPLE_COUNT);
+    pub fn new(device: &Device, width: u32, height: u32) -> Self {
+        let texture_view_depth = gen_texture_view_depth(device, width, height, SAMPLE_COUNT);
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Bind Group Layout Shadow"),
@@ -49,6 +51,7 @@ impl PipeShadow {
                 bind_group_layouts: &[&bind_group_layout],
                 push_constant_ranges: &[],
             });
+
         let shader = std::fs::read_to_string("assets/shader/shadow.wgsl").unwrap();
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader Shadow"),
@@ -95,7 +98,8 @@ impl PipeShadow {
         });
 
         let view = Mat4::look_to_rh(Vec3::ZERO, Vec3::ZERO, Vec3::Y);
-        let proj = Mat4::orthographic_rh(-10.0, 10.0, -10.0, 10.0, 1.0, 10.0);
+        let proj_size = 5.0;
+        let proj = Mat4::orthographic_rh(-proj_size, proj_size, -proj_size, proj_size, 0.1, 70.0);
         let buffer_view_proj = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Buffer Shadow View Proj"),
             contents: bytemuck::cast_slice(&(proj.mul_mat4(&view)).to_cols_array_2d()),
@@ -119,6 +123,8 @@ impl PipeShadow {
             bind_group,
             buffer_view_proj,
             proj,
+            width,
+            height,
         }
     }
 
@@ -156,17 +162,13 @@ impl PipeShadow {
         }
     }
 
-    pub fn resize(&mut self, device: &Device, surface_config: &SurfaceConfiguration) {
-        self.texture_view_depth = gen_texture_view_depth(device, surface_config, SAMPLE_COUNT);
+    pub fn resize(&mut self, device: &Device, width: u32, height: u32) {
+        self.texture_view_depth = gen_texture_view_depth(device, width, height, SAMPLE_COUNT);
     }
 
-    pub fn set_light_direction(
-        &mut self,
-        queue: &Queue,
-        light_pos: Vec3,
-        light_direction: &LightDirection,
-    ) {
-        let view = Mat4::look_to_rh(light_pos, light_direction.dir.into(), Vec3::Y);
+    pub fn set_light_direction(&mut self, queue: &Queue, light_direction: &LightDirection) {
+        let dir: Vec3 = light_direction.dir.into();
+        let view = Mat4::look_to_rh(-dir * 15.0, dir, Vec3::Y);
         queue.write_buffer(
             &self.buffer_view_proj,
             0,

@@ -61,9 +61,9 @@ impl Vertex {
         )
     }
 
-    pub fn rect_right_up() -> ([Self; 4], [u32; 6]) {
-        let min = 0.0;
-        let max = 1.0;
+    pub fn rect_right_up(min: f32, max: f32) -> ([Self; 4], [u32; 6]) {
+        let min = min.min(max);
+        let max = min.max(max);
         (
             [
                 Self::new([min, min, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0]),

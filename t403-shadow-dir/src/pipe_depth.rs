@@ -12,6 +12,8 @@ pub struct PipeDepth {
     pub vertex_buffer: Buffer,
     pub index_buffer: Buffer,
     pub index_len: u32,
+    pub is_orth: bool,
+    pub buffer_is_orth: Buffer,
 }
 
 impl PipeDepth {
@@ -21,6 +23,7 @@ impl PipeDepth {
         texture_view_depth: &TextureView,
         width: u32,
         height: u32,
+        is_orth: bool,
     ) -> Self {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Bind Group Layout Pipe Depth"),
@@ -37,6 +40,16 @@ impl PipeDepth {
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
@@ -96,9 +109,15 @@ impl PipeDepth {
             multiview: None,
         });
 
-        let buffer_screen_size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Buffer Screen Size"),
+        let buffer_texture_size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Buffer Texture Size"),
             contents: bytemuck::cast_slice(&[width, height]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        let buffer_is_orth = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Buffer Is Orth"),
+            contents: bytemuck::cast_slice(&[if is_orth { 1_u32 } else { 0_u32 }]),
             usage: wgpu::BufferUsages::UNIFORM,
         });
 
@@ -113,13 +132,19 @@ impl PipeDepth {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(
-                        buffer_screen_size.as_entire_buffer_binding(),
+                        buffer_texture_size.as_entire_buffer_binding(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(
+                        buffer_is_orth.as_entire_buffer_binding(),
                     ),
                 },
             ],
         });
 
-        let (vertices, indices) = Vertex::rect_right_up();
+        let (vertices, indices) = Vertex::rect_right_up(0.0, 1.0);
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer Pipe Depth"),
             contents: bytemuck::cast_slice(&vertices),
@@ -139,6 +164,8 @@ impl PipeDepth {
             vertex_buffer,
             index_buffer,
             index_len: indices.len() as u32,
+            is_orth,
+            buffer_is_orth,
         }
     }
 
@@ -166,6 +193,12 @@ impl PipeDepth {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(
                         buffer_screen_size.as_entire_buffer_binding(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(
+                        self.buffer_is_orth.as_entire_buffer_binding(),
                     ),
                 },
             ],

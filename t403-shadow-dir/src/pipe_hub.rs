@@ -79,14 +79,21 @@ impl PipeHub {
 
         let input = Input::new();
 
-        let pipe_shadow = PipeShadow::new(&device, &surface_config);
-        let pipe_mesh = PipeMesh::new(&device, &surface_config);
+        let pipe_shadow = PipeShadow::new(&device, 1024, 1024);
+        let pipe_mesh = PipeMesh::new(
+            &device,
+            &surface_config,
+            &pipe_shadow.buffer_view_proj,
+            &pipe_shadow.texture_view_depth,
+            [pipe_shadow.width, pipe_shadow.height],
+        );
         let pipe_depth = PipeDepth::new(
             &device,
             &surface_config,
             &pipe_shadow.texture_view_depth,
-            surface_config.width,
-            surface_config.height,
+            pipe_shadow.width,
+            pipe_shadow.height,
+            true,
         );
 
         Self {
@@ -114,13 +121,14 @@ impl PipeHub {
         self.surface_config.width = width;
         self.surface_config.height = height;
         self.surface.configure(&self.device, &self.surface_config);
+
         self.pipe_mesh.resize(&self.device, &self.surface_config);
-        self.pipe_shadow.resize(&self.device, &self.surface_config);
+
         self.pipe_depth.set_texture_view_depth(
             &self.device,
             &self.pipe_shadow.texture_view_depth,
-            self.surface_config.width,
-            self.surface_config.height,
+            self.pipe_shadow.width,
+            self.pipe_shadow.height,
         );
     }
 
@@ -161,11 +169,6 @@ impl PipeHub {
 
         self.pipe_mesh
             .update(&mut self.queue, &self.input, delta_time);
-        self.pipe_shadow.set_light_direction(
-            &self.queue,
-            self.pipe_mesh.camera.pos,
-            &self.pipe_mesh.light_direction_arr[0],
-        );
     }
 
     fn cursor_moved(&mut self, x: f32, y: f32) {
@@ -181,12 +184,15 @@ impl PipeHub {
         }
     }
 
-    pub fn add_direction_light(&mut self, light_direction: LightDirection) {
-        self.pipe_mesh.light_direction_arr.push(light_direction);
-        self.pipe_shadow.set_light_direction(
-            &self.queue,
-            self.pipe_mesh.camera.pos,
-            &self.pipe_mesh.light_direction_arr[0],
+    pub fn add_light_direction(&mut self, light_direction: LightDirection) {
+        self.pipe_mesh
+            .add_light_direction(&mut self.queue, light_direction);
+        self.pipe_shadow
+            .set_light_direction(&self.queue, &self.pipe_mesh.light_direction_arr[0]);
+        self.pipe_mesh.set_shadow_depth(
+            &self.device,
+            &self.pipe_shadow.buffer_view_proj,
+            &self.pipe_shadow.texture_view_depth,
         );
     }
 

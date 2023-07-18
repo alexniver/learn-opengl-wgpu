@@ -88,15 +88,16 @@ pub fn gen_texture_view(
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub fn gen_texture_view_depth(
     device: &wgpu::Device,
-    surface_config: &wgpu::SurfaceConfiguration,
+    width: u32,
+    height: u32,
     sample_count: u32,
 ) -> wgpu::TextureView {
     device
         .create_texture(&wgpu::TextureDescriptor {
             label: Some("Texture"),
             size: wgpu::Extent3d {
-                width: surface_config.width,
-                height: surface_config.height,
+                width,
+                height,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,

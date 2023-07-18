@@ -9,6 +9,7 @@ struct VertexOut {
     @location(0) frag_pos: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) tex_coord: vec2<f32>,
+    @location(3) frag_pos_light_space: vec4<f32>,
 }
 
 struct TransformIT {
@@ -68,6 +69,12 @@ struct LightSpotArray {
 var<uniform> view_proj: mat4x4<f32>;
 @group(0)@binding(1)
 var<uniform> camera_pos: vec3<f32>;
+@group(0)@binding(2)
+var<uniform> view_proj_light: mat4x4<f32>;
+@group(0)@binding(3)
+var<uniform> shadow_depth_size: vec2<u32>;
+@group(0)@binding(4)
+var texture_shadow_map: texture_depth_multisampled_2d;
 
 @vertex
 fn vs_main(in: VertexIn, transform: TransformIT) -> VertexOut {
@@ -80,6 +87,7 @@ fn vs_main(in: VertexIn, transform: TransformIT) -> VertexOut {
     out.frag_pos = (model * vec4<f32>(in.pos, 1.0)).xyz;
     out.normal = it_model * in.normal;
     out.tex_coord = in.tex_coord;
+    out.frag_pos_light_space = view_proj_light * model * vec4<f32>(in.pos, 1.0);
 
     return out;
 }
@@ -109,10 +117,14 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normal);
     let view_dir = normalize(camera_pos - in.frag_pos);
 
+// 0.5 for x, -0.5 for y, because texture is y flip
+    let frag_pos_light_space_xy = (in.frag_pos_light_space.xy / in.frag_pos_light_space.w) * vec2<f32>(0.5, -0.5) + 0.5;
+    let frag_pos_light_space_z = in.frag_pos_light_space.z;
+
     let tex_diffuse = textureSample(texture_diffuse, texture_sampler, in.tex_coord).rgb;
 
     for (var i: u32 = 0u; i < arrayLength(&light_direction_arr.arr); i = i + 1u) {
-        l += do_light_direction(light_direction_arr.arr[i], normal, view_dir, tex_diffuse);
+        l += do_light_direction(light_direction_arr.arr[i], normal, view_dir, tex_diffuse, frag_pos_light_space_xy, frag_pos_light_space_z);
     }
 
     for (var i: u32 = 0u; i < arrayLength(&light_point_arr.arr); i = i + 1u) {
@@ -125,7 +137,7 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     return vec4<f32>(l, 1.0);
 }
 
-fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>) -> vec3<f32> {
+fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>, frag_pos_light_space_xy: vec2<f32>, frag_pos_light_space_z: f32) -> vec3<f32> {
     if light_direction.color.a == 0.0 {
         return vec3<f32>(0.0, 0.0, 0.0);
     }
@@ -146,7 +158,19 @@ fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_d
 
     let specular = light_direction.specular * light_color * spec * tex_diffuse;
 
-    return ambient + diffuse + specular;
+    let shadow_value = get_direction_light_shadow(frag_pos_light_space_xy, frag_pos_light_space_z);
+
+    return ambient + (1.0 - shadow_value) * (diffuse + specular);
+    //return ambient + (diffuse + specular);
+    //return vec3<f32>(frag_pos_light_space_z);
+    //return vec3<f32>(shadow_map_value);
+}
+
+fn get_direction_light_shadow(frag_pos_light_space_xy: vec2<f32>, frag_pos_light_space_z: f32) -> f32 {
+    let tex_coord = vec2<u32>(u32(f32(shadow_depth_size.x) * frag_pos_light_space_xy.x), u32(f32(shadow_depth_size.y) * frag_pos_light_space_xy.y));
+    let shadow_map_value = textureLoad(texture_shadow_map, tex_coord, 0);
+    let shadow_value = select(1.0, 0.0, frag_pos_light_space_z < shadow_map_value);
+    return shadow_value;
 }
 
 fn do_light_point(light_point: LightPoint, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>, frag_pos: vec3<f32>) -> vec3<f32> {

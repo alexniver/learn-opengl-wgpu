@@ -31,16 +31,13 @@ pub fn run() {
         // load_triangle_model(&mut core);
         load_gltf_model(&mut core);
         load_plane_model(&mut core);
-        core.pipe_mesh.add_light_direction(
-            &mut core.queue,
-            LightDirection::new(
-                [-0.2, -0.5, -0.8],
-                [1.0, 1.0, 1.0, 1.0],
-                [0.05, 0.05, 0.05],
-                [0.5, 0.5, 0.5],
-                [0.9, 0.9, 0.9],
-            ),
-        );
+        core.add_light_direction(LightDirection::new(
+            [-0.2, -0.5, -0.8],
+            [1.0, 1.0, 1.0, 1.0],
+            [0.05, 0.05, 0.05],
+            [0.5, 0.5, 0.5],
+            [0.9, 0.9, 0.9],
+        ));
 
         PipeHub::block_loop(event_loop, core);
     });
