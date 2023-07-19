@@ -79,7 +79,7 @@ impl PipeHub {
 
         let input = Input::new();
 
-        let pipe_shadow = PipeShadow::new(&device, 1024, 1024);
+        let pipe_shadow = PipeShadow::new(&device, 1024 * 2, 1024 * 2);
         let pipe_mesh = PipeMesh::new(
             &device,
             &surface_config,

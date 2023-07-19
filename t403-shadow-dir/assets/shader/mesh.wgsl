@@ -72,7 +72,7 @@ var<uniform> camera_pos: vec3<f32>;
 @group(0)@binding(2)
 var<uniform> view_proj_light: mat4x4<f32>;
 @group(0)@binding(3)
-var<uniform> shadow_depth_size: vec2<u32>;
+var<uniform> shadow_map_size: vec2<u32>;
 @group(0)@binding(4)
 var texture_shadow_map: texture_depth_multisampled_2d;
 
@@ -158,20 +158,37 @@ fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_d
 
     let specular = light_direction.specular * light_color * spec * tex_diffuse;
 
-    let shadow_value = get_direction_light_shadow(frag_pos_light_space_xy, frag_pos_light_space_z);
+    let visiblity = get_direction_light_visiblity(frag_pos_light_space_xy, frag_pos_light_space_z, normal, light_dir);
 
-    return ambient + (1.0 - shadow_value) * (diffuse + specular);
+    return ambient + visiblity * (diffuse + specular);
+    //return vec3<f32>(visiblity);
 }
 
-fn get_direction_light_shadow(frag_pos_light_space_xy: vec2<f32>, frag_pos_light_space_z: f32) -> f32 {
+fn get_direction_light_visiblity(frag_pos_light_space_xy: vec2<f32>, frag_pos_light_space_z: f32, normal: vec3<f32>, light_dir: vec3<f32>) -> f32 {
     if frag_pos_light_space_z > 1.0 || frag_pos_light_space_xy.x > 1.0 || frag_pos_light_space_xy.y > 1.0 || frag_pos_light_space_xy.x < 0.0 || frag_pos_light_space_xy.y < 0.0 {
-        return 0.0;
+        return 1.0;
     }
-    let tex_coord = vec2<u32>(u32(f32(shadow_depth_size.x) * frag_pos_light_space_xy.x), u32(f32(shadow_depth_size.y) * frag_pos_light_space_xy.y));
-    let shadow_map_value = textureLoad(texture_shadow_map, tex_coord, 1);
+    //let tex_coord = vec2<u32>(u32(f32(shadow_map_size.x) * frag_pos_light_space_xy.x), u32(f32(shadow_map_size.y) * frag_pos_light_space_xy.y));
+    let bias = max(0.008 * (1.0 - dot(normal, light_dir)), 0.003);
+    var visiblity = 0.0;
+    let sample_size = 2;
+    for (var y = -sample_size; y <= sample_size; y ++) {
+        for (var x = -sample_size; x <= sample_size; x ++) {
+            let tex_coord = vec2<u32>(vec2<f32>(shadow_map_size) * frag_pos_light_space_xy);
+            let tmp_x = i32(tex_coord.x) + x;
+            let tmp_y = i32(tex_coord.y) + y;
+            if tmp_x < 0 || tmp_x >= i32(shadow_map_size.x) || tmp_y < 0 || tmp_y >= i32(shadow_map_size.y) {
+                visiblity += 1.0;
+            } else {
+                let shadow_map_value = textureLoad(texture_shadow_map, vec2<u32>(u32(tmp_x), u32(tmp_y)), 0);
 
-    let shadow_value = select(1.0, 0.0, frag_pos_light_space_z < shadow_map_value + 0.001);
-    return shadow_value;
+                visiblity += select(0.0, 1.0, frag_pos_light_space_z < shadow_map_value + bias);
+            }
+        }
+    }
+    visiblity /= pow(f32(sample_size * 2 + 1), 2.0);
+
+    return visiblity;
 }
 
 fn do_light_point(light_point: LightPoint, normal: vec3<f32>, view_dir: vec3<f32>, tex_diffuse: vec3<f32>, frag_pos: vec3<f32>) -> vec3<f32> {

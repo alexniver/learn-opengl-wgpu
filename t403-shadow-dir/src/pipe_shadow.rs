@@ -98,7 +98,7 @@ impl PipeShadow {
         });
 
         let view = Mat4::look_to_rh(Vec3::ZERO, Vec3::ZERO, Vec3::Y);
-        let proj_size = 5.0;
+        let proj_size = 20.0;
         let proj = Mat4::orthographic_rh(-proj_size, proj_size, -proj_size, proj_size, 0.1, 70.0);
         let buffer_view_proj = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Buffer Shadow View Proj"),
