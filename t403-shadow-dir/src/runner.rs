@@ -32,7 +32,7 @@ pub fn run() {
         load_gltf_model(&mut core);
         load_plane_model(&mut core);
         core.add_light_direction(LightDirection::new(
-            [-0.2, -0.5, -0.8],
+            [-0.2, -0.9, -0.8],
             [1.0, 1.0, 1.0, 1.0],
             [0.05, 0.05, 0.05],
             [0.5, 0.5, 0.5],
