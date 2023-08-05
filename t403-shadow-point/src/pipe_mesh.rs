@@ -38,9 +38,8 @@ pub struct PipeMesh {
     pub bind_group_camera: BindGroup,
     pub buffer_view_proj: Buffer,
     pub buffer_camera_pos: Buffer,
+    pub sampler_view_shadow_map: Sampler,
 
-    pub buffer_shadow_map_view_proj_arr: Buffer,
-    pub buffer_shadow_map_size: Buffer,
     pub light_direction_arr: Vec<LightDirection>,
     pub light_point_arr: Vec<LightPoint>,
     pub light_spot_arr: Vec<LightSpot>,
@@ -55,7 +54,6 @@ impl PipeMesh {
         device: &Device,
         surface_config: &SurfaceConfiguration,
         texture_view_shadow_map: &TextureView,
-        shadow_map_size: [u32; 2],
     ) -> Self {
         let mesh_shader = std::fs::read_to_string("assets/shader/mesh.wgsl").unwrap();
         let mesh_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -111,10 +109,16 @@ impl PipeMesh {
                         binding: 4,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Depth,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
                             view_dimension: wgpu::TextureViewDimension::Cube,
                             multisampled: false,
                         },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
                 ],
@@ -284,10 +288,22 @@ impl PipeMesh {
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             });
 
-        let buffer_shadow_map_size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Buffer Shadow Map Texture Size"),
-            contents: bytemuck::cast_slice(&shadow_map_size),
+        let buffer_light_point_pos = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("buffer_light_point_pos"),
+            contents: bytemuck::cast_slice(&[0.0, 0.0, 0.0]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let sampler_view_shadow_map = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("sampler_view_shadow_map"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            compare: None,
+            ..Default::default()
         });
 
         let bind_group_camera = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -315,12 +331,16 @@ impl PipeMesh {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(
-                        buffer_shadow_map_size.as_entire_buffer_binding(),
+                        buffer_light_point_pos.as_entire_buffer_binding(),
                     ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::TextureView(&texture_view_shadow_map),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Sampler(&sampler_view_shadow_map),
                 },
             ],
         });
@@ -417,9 +437,7 @@ impl PipeMesh {
             buffer_camera_pos,
             texture_view_depth,
             texture_view_msaa,
-
-            buffer_shadow_map_view_proj_arr,
-            buffer_shadow_map_size,
+            sampler_view_shadow_map,
 
             light_direction_arr,
             light_point_arr,
@@ -549,20 +567,10 @@ impl PipeMesh {
     pub fn set_shadow_map(
         &mut self,
         device: &Device,
-        queue: &Queue,
-        view_proj_arr_shadow_map: &[Mat4; 6],
+        buffer_view_proj_arr_shadow_map: Buffer,
+        buffer_light_point_pos: Buffer,
         texture_view_shadow_map: &TextureView,
     ) {
-        queue.write_buffer(
-            &self.buffer_shadow_map_view_proj_arr,
-            0,
-            bytemuck::cast_slice(
-                &view_proj_arr_shadow_map
-                    .iter()
-                    .map(|m| m.to_cols_array_2d())
-                    .collect::<Vec<[[f32; 4]; 4]>>(),
-            ),
-        );
         self.bind_group_camera = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Bind Group Camera"),
             layout: &self.bind_group_layout_camera,
@@ -582,19 +590,22 @@ impl PipeMesh {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(
-                        self.buffer_shadow_map_view_proj_arr
-                            .as_entire_buffer_binding(),
+                        buffer_view_proj_arr_shadow_map.as_entire_buffer_binding(),
                     ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(
-                        self.buffer_shadow_map_size.as_entire_buffer_binding(),
+                        buffer_light_point_pos.as_entire_buffer_binding(),
                     ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::TextureView(&texture_view_shadow_map),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler_view_shadow_map),
                 },
             ],
         });

@@ -32,7 +32,7 @@ pub fn run() {
         load_gltf_model(&mut core);
         load_plane_model(&mut core);
         core.add_light_point(LightPoint::new(
-            [-2.5, 1.5, 0.0],
+            [-2.5, 0.5, 0.0],
             [1.0, 0.5, 0.0, 1.0],
             [0.1, 0.1, 0.1],
             [0.5, 0.5, 0.5],
@@ -143,8 +143,9 @@ pub fn load_gltf_model(core: &mut PipeHub) {
                 indices,
                 vec![
                     Transform::new(Vec3::new(0.0, 0.0, 0.0), Quat::IDENTITY, Vec3::ONE),
-                    Transform::new(Vec3::new(-1.0, 5.0, 0.0), Quat::IDENTITY, Vec3::ONE),
-                    Transform::new(Vec3::new(2.0, 1.0, 0.0), Quat::IDENTITY, Vec3::ONE),
+                    Transform::new(Vec3::new(-1.0, 6.0, 0.0), Quat::IDENTITY, Vec3::ONE),
+                    Transform::new(Vec3::new(-0.0, 3.0, 0.0), Quat::IDENTITY, Vec3::ONE),
+                    Transform::new(Vec3::new(3.0, 1.5, 0.0), Quat::IDENTITY, Vec3::ONE),
                 ],
             );
 

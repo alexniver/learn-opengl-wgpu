@@ -8,7 +8,7 @@ use crate::{
     light_point::LightPoint,
     material::Material,
     model::DrawMethod,
-    texture::{gen_texture_depth, gen_texture_depth_cube, DEPTH_FORMAT},
+    texture::{gen_texture_cube, gen_texture_depth, DEPTH_FORMAT},
     transform::TransformRawIT,
     vertex::Vertex,
 };
@@ -17,6 +17,7 @@ const SAMPLE_COUNT: u32 = 1;
 
 pub struct PipeShadow {
     pub render_pipeline: RenderPipeline,
+    pub texture_cube: Texture,
     pub texture_depth: Texture,
     pub bind_group_layout: BindGroupLayout,
     pub bind_group_view_arr: Option<([BindGroup; 6], [Mat4; 6])>,
@@ -26,21 +27,39 @@ pub struct PipeShadow {
 }
 
 impl PipeShadow {
-    pub fn new(device: &Device, width: u32, height: u32) -> Self {
-        let texture_depth = gen_texture_depth_cube(device, width, height, SAMPLE_COUNT);
+    pub fn new(
+        device: &Device,
+        surface_config: &wgpu::SurfaceConfiguration,
+        width: u32,
+        height: u32,
+    ) -> Self {
+        let texture_cube = gen_texture_cube(device, &surface_config, width, height);
+        let texture_depth = gen_texture_depth(device, width, height, 1);
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Bind Group Layout Shadow"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
         });
 
         let render_pipeline_layout =
@@ -91,17 +110,26 @@ impl PipeShadow {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            fragment: None,
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
             multiview: None,
         });
 
         // let proj_size = 20.0;
         // let proj = Mat4::orthographic_rh(-proj_size, proj_size, -proj_size, proj_size, 0.1, 70.0);
-        let proj = Mat4::perspective_rh(45.0_f32.to_radians(), (width / height) as f32, 0.1, 100.0);
+        let proj = Mat4::perspective_rh(90.0_f32.to_radians(), (width / height) as f32, 0.1, 100.0);
         let bind_group_view_arr: Option<([BindGroup; 6], [Mat4; 6])> = None;
 
         Self {
             render_pipeline,
+            texture_cube,
             texture_depth,
             bind_group_layout,
             bind_group_view_arr,
@@ -111,9 +139,24 @@ impl PipeShadow {
         }
     }
 
-    pub fn render(&mut self, encoder: &mut CommandEncoder, material_arr: &Vec<Material>) {
+    pub fn render(
+        &mut self,
+        encoder: &mut CommandEncoder,
+        surface_config: &wgpu::SurfaceConfiguration,
+        material_arr: &Vec<Material>,
+    ) {
         if let Some((bind_group_arr, _)) = &self.bind_group_view_arr {
             for (idx, bind_group) in bind_group_arr.iter().enumerate() {
+                let texture_view = self.texture_cube.create_view(&wgpu::TextureViewDescriptor {
+                    label: Some("Texture View Shadow Map"),
+                    format: Some(surface_config.format),
+                    dimension: Some(wgpu::TextureViewDimension::D2),
+                    aspect: wgpu::TextureAspect::All,
+                    base_mip_level: 0,
+                    mip_level_count: None,
+                    base_array_layer: idx as u32,
+                    array_layer_count: Some(1),
+                });
                 let texture_view_depth =
                     &self
                         .texture_depth
@@ -124,12 +167,24 @@ impl PipeShadow {
                             aspect: wgpu::TextureAspect::DepthOnly,
                             base_mip_level: 0,
                             mip_level_count: None,
-                            base_array_layer: idx as u32,
-                            array_layer_count: Some(1),
+                            base_array_layer: 0,
+                            array_layer_count: None,
                         });
                 let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Render Pass Shadow"),
-                    color_attachments: &[],
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &texture_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color {
+                                r: f64::MAX,
+                                g: f64::MAX,
+                                b: f64::MAX,
+                                a: f64::MAX,
+                            }),
+                            store: true,
+                        },
+                    })],
                     depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                         view: texture_view_depth,
                         depth_ops: Some(wgpu::Operations {
@@ -205,15 +260,29 @@ impl PipeShadow {
                         ),
                         usage: wgpu::BufferUsages::UNIFORM,
                     });
+                let buffer_light_point_pos =
+                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Buffer Light Point Pos"),
+                        contents: bytemuck::cast_slice(&light_point.pos),
+                        usage: wgpu::BufferUsages::UNIFORM,
+                    });
                 device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Bind Group Shadow Map"),
                     layout: &self.bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(
-                            buffer_view_proj.as_entire_buffer_binding(),
-                        ),
-                    }],
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Buffer(
+                                buffer_view_proj.as_entire_buffer_binding(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Buffer(
+                                buffer_light_point_pos.as_entire_buffer_binding(),
+                            ),
+                        },
+                    ],
                 })
             })
             .collect::<Vec<BindGroup>>()

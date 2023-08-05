@@ -1,8 +1,8 @@
 use std::time::Instant;
 
 use wgpu::{
-    Adapter, Backends, Device, DeviceDescriptor, Features, Instance, PresentMode, Queue, Surface,
-    SurfaceConfiguration, TextureUsages,
+    util::DeviceExt, Adapter, Backends, Device, DeviceDescriptor, Features, Instance, PresentMode,
+    Queue, Surface, SurfaceConfiguration, TextureUsages,
 };
 use winit::{
     dpi::PhysicalPosition, event::MouseScrollDelta, event_loop::EventLoop, window::Window,
@@ -79,18 +79,17 @@ impl PipeHub {
 
         let input = Input::new();
 
-        let pipe_shadow = PipeShadow::new(&device, 1024 * 2, 1024 * 2);
+        let pipe_shadow = PipeShadow::new(&device, &surface_config, 1024 * 2, 1024 * 2);
         let pipe_mesh = PipeMesh::new(
             &device,
             &surface_config,
             &pipe_shadow
-                .texture_depth
+                .texture_cube
                 .create_view(&wgpu::TextureViewDescriptor {
                     label: Some("Texture View Shadow Map"),
                     dimension: Some(wgpu::TextureViewDimension::Cube),
                     ..Default::default()
                 }),
-            [pipe_shadow.width, pipe_shadow.height],
         );
         let pipe_depth = PipeDepth::new(
             &device,
@@ -169,8 +168,11 @@ impl PipeHub {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
-        self.pipe_shadow
-            .render(&mut encoder, &self.pipe_mesh.material_arr);
+        self.pipe_shadow.render(
+            &mut encoder,
+            &self.surface_config,
+            &self.pipe_mesh.material_arr,
+        );
         self.pipe_mesh.render(&mut encoder, &texture_view);
         self.pipe_depth.render(&mut encoder, &texture_view);
 
@@ -213,13 +215,31 @@ impl PipeHub {
         self.pipe_shadow
             .set_light_point(&self.device, &self.pipe_mesh.light_point_arr[0]);
         if let Some((_, view_mat4_arr)) = &self.pipe_shadow.bind_group_view_arr {
+            let view_proj_mat4_arr = view_mat4_arr
+                .iter()
+                .map(|view| self.pipe_shadow.proj.mul_mat4(&view).to_cols_array_2d())
+                .collect::<Vec<[[f32; 4]; 4]>>();
+            let buffer_view_proj_mat4_arr =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Buffer View Proj Mat4 Array"),
+                        contents: bytemuck::cast_slice(&view_proj_mat4_arr),
+                        usage: wgpu::BufferUsages::STORAGE,
+                    });
+            let buffer_light_point_pos =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Buffer Light Point Pos"),
+                        contents: bytemuck::cast_slice(&self.pipe_mesh.light_point_arr[0].pos),
+                        usage: wgpu::BufferUsages::UNIFORM,
+                    });
             self.pipe_mesh.set_shadow_map(
                 &self.device,
-                &self.queue,
-                view_mat4_arr,
+                buffer_view_proj_mat4_arr,
+                buffer_light_point_pos,
                 &self
                     .pipe_shadow
-                    .texture_depth
+                    .texture_cube
                     .create_view(&wgpu::TextureViewDescriptor {
                         label: Some("Texture View Shadow Map Depth"),
                         dimension: Some(wgpu::TextureViewDimension::Cube),

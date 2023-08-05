@@ -108,6 +108,28 @@ pub fn gen_texture_depth(
     })
 }
 
+pub fn gen_texture_cube(
+    device: &wgpu::Device,
+    surface_config: &wgpu::SurfaceConfiguration,
+    width: u32,
+    height: u32,
+) -> wgpu::Texture {
+    device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("Texture Cube"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 6,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: surface_config.format,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    })
+}
+
 pub fn gen_texture_depth_cube(
     device: &wgpu::Device,
     width: u32,
