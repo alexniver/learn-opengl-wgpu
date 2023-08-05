@@ -78,6 +78,8 @@ var<uniform> light_point_pos: vec3<f32>;
 var texture_shadow_map: texture_cube<f32>;
 @group(0)@binding(5)
 var sampler_shadow_map: sampler;
+@group(0)@binding(6)
+var<uniform> near_far: vec2<f32>;
 
 @vertex
 fn vs_main(in: VertexIn, transform: TransformIT) -> VertexOut {
@@ -160,27 +162,26 @@ fn do_light_direction(light_direction: LightDirection, normal: vec3<f32>, view_d
 
     return ambient + (diffuse + specular);
 }
+
 fn get_point_light_visiblity(frag_pos_world: vec3<f32>, normal: vec3<f32>) -> f32 {
-    var visiblity = 0.0;
-    let sample_size = 2;
-    for (var y = -sample_size; y <= sample_size; y ++) {
-        for (var x = -sample_size; x <= sample_size; x ++) {
-                //let shadow_map_value = textureLoad(texture_shadow_map, vec2<u32>(u32(tmp_x), u32(tmp_y)), 0);
-
-                //visiblity += select(0.0, 1.0, frag_pos_light_space_z < shadow_map_value + bias);
-            //visiblity += 1.0;
-        }
-    }
-
-
     let light_to_frag_world = frag_pos_world - light_point_pos;
     let dir_light_to_frag_world = normalize(light_to_frag_world);
-    let len_light_to_frag_world = length(light_to_frag_world);
+    let len = length(light_to_frag_world);
+    let v = (len - near_far.x) / (near_far.y - near_far.x);
 
     let bias = max(0.005 * (1.0 - dot(normal, -light_to_frag_world)), 0.002);
 
-    let depth = textureSample(texture_shadow_map, sampler_shadow_map, dir_light_to_frag_world).r;
-    visiblity = select(0.0, 1.0, len_light_to_frag_world / 100.0 < depth + bias);
+    var visiblity = 0.0;
+    let sample_size = 2;
+    //for (var y = -sample_size; y <= sample_size; y ++) {
+     //   for (var x = -sample_size; x <= sample_size; x ++) {
+    //let offset = vec2<i32>(x, y);
+    let v_sample = textureSample(texture_shadow_map, sampler_shadow_map, dir_light_to_frag_world).r;
+    visiblity = select(0.0, 1.0, v < v_sample + bias);
+      //  }
+    //}
+
+    //visiblity /= pow(f32(sample_size * 2 + 1), 2.0);
 
     return visiblity;
     //return depth / 2.0;

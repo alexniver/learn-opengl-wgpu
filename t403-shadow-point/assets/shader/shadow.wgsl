@@ -24,6 +24,8 @@ struct TransformIT {
 var<uniform> view_proj: mat4x4<f32>;
 @group(0)@binding(1)
 var<uniform> light_point_pos: vec3<f32>;
+@group(0)@binding(2)
+var<uniform> near_far: vec2<f32>;
 
 @vertex
 fn vs_main(in: VertexIn, transform: TransformIT) -> VertexOut {
@@ -38,5 +40,7 @@ fn vs_main(in: VertexIn, transform: TransformIT) -> VertexOut {
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-    return vec4<f32>(length(in.pos_world - light_point_pos) / 100.0);
+    let len = length(in.pos_world - light_point_pos);
+    let v = (len - near_far.x) / (near_far.y - near_far.x);
+    return vec4<f32>(v);
 }

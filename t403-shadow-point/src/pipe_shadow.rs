@@ -21,6 +21,7 @@ pub struct PipeShadow {
     pub texture_depth: Texture,
     pub bind_group_layout: BindGroupLayout,
     pub bind_group_view_arr: Option<([BindGroup; 6], [Mat4; 6])>,
+    pub buffer_near_far: wgpu::Buffer,
     pub proj: Mat4,
     pub width: u32,
     pub height: u32,
@@ -51,6 +52,16 @@ impl PipeShadow {
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
@@ -124,9 +135,19 @@ impl PipeShadow {
 
         // let proj_size = 20.0;
         // let proj = Mat4::orthographic_rh(-proj_size, proj_size, -proj_size, proj_size, 0.1, 70.0);
-        let proj = Mat4::perspective_rh(90.0_f32.to_radians(), (width / height) as f32, 0.1, 100.0);
+        let near_far = [0.1, 100.0];
+        let proj = Mat4::perspective_rh(
+            90.0_f32.to_radians(),
+            (width / height) as f32,
+            near_far[0],
+            near_far[1],
+        );
         let bind_group_view_arr: Option<([BindGroup; 6], [Mat4; 6])> = None;
-
+        let buffer_near_far = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Buffer Near Far"),
+            contents: bytemuck::cast_slice(&near_far),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
         Self {
             render_pipeline,
             texture_cube,
@@ -136,6 +157,7 @@ impl PipeShadow {
             proj,
             width,
             height,
+            buffer_near_far,
         }
     }
 
@@ -248,6 +270,11 @@ impl PipeShadow {
             // Front
             Mat4::look_to_rh(light_point.pos.into(), Vec3::new(0.0, 0.0, 1.0), Vec3::Y),
         ];
+        let buffer_light_point_pos = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Buffer Light Point Pos"),
+            contents: bytemuck::cast_slice(&light_point.pos),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
 
         let bind_group_arr = view_mat4_arr
             .iter()
@@ -260,12 +287,7 @@ impl PipeShadow {
                         ),
                         usage: wgpu::BufferUsages::UNIFORM,
                     });
-                let buffer_light_point_pos =
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("Buffer Light Point Pos"),
-                        contents: bytemuck::cast_slice(&light_point.pos),
-                        usage: wgpu::BufferUsages::UNIFORM,
-                    });
+
                 device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Bind Group Shadow Map"),
                     layout: &self.bind_group_layout,
@@ -280,6 +302,12 @@ impl PipeShadow {
                             binding: 1,
                             resource: wgpu::BindingResource::Buffer(
                                 buffer_light_point_pos.as_entire_buffer_binding(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::Buffer(
+                                self.buffer_near_far.as_entire_buffer_binding(),
                             ),
                         },
                     ],

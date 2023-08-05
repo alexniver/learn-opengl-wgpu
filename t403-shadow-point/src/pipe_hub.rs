@@ -90,6 +90,7 @@ impl PipeHub {
                     dimension: Some(wgpu::TextureViewDimension::Cube),
                     ..Default::default()
                 }),
+            &pipe_shadow.buffer_near_far,
         );
         let pipe_depth = PipeDepth::new(
             &device,
@@ -245,6 +246,7 @@ impl PipeHub {
                         dimension: Some(wgpu::TextureViewDimension::Cube),
                         ..Default::default()
                     }),
+                &self.pipe_shadow.buffer_near_far,
             );
         }
     }

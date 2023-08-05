@@ -54,6 +54,7 @@ impl PipeMesh {
         device: &Device,
         surface_config: &SurfaceConfiguration,
         texture_view_shadow_map: &TextureView,
+        buffer_near_far: &Buffer,
     ) -> Self {
         let mesh_shader = std::fs::read_to_string("assets/shader/mesh.wgsl").unwrap();
         let mesh_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -119,6 +120,16 @@ impl PipeMesh {
                         binding: 5,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
                         count: None,
                     },
                 ],
@@ -341,6 +352,12 @@ impl PipeMesh {
                 wgpu::BindGroupEntry {
                     binding: 5,
                     resource: wgpu::BindingResource::Sampler(&sampler_view_shadow_map),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Buffer(
+                        buffer_near_far.as_entire_buffer_binding(),
+                    ),
                 },
             ],
         });
@@ -570,6 +587,7 @@ impl PipeMesh {
         buffer_view_proj_arr_shadow_map: Buffer,
         buffer_light_point_pos: Buffer,
         texture_view_shadow_map: &TextureView,
+        buffer_near_far: &Buffer,
     ) {
         self.bind_group_camera = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Bind Group Camera"),
@@ -606,6 +624,12 @@ impl PipeMesh {
                 wgpu::BindGroupEntry {
                     binding: 5,
                     resource: wgpu::BindingResource::Sampler(&self.sampler_view_shadow_map),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Buffer(
+                        buffer_near_far.as_entire_buffer_binding(),
+                    ),
                 },
             ],
         });
